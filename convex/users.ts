@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Doc } from "./_generated/dataModel";
 
 export const getCurrentUserProfile = query({
   args: {},
@@ -31,9 +32,9 @@ export const ensureUserProfile = mutation({
     const allProfiles = await ctx.db.query("userProfiles").collect();
     const role = allProfiles.length === 0 ? "owner" : "admin";
 
-    const user = await ctx.db.get(userId);
-    const email = (user as any)?.email ?? "";
-    const name = (user as any)?.name ?? email.split("@")[0];
+    const user = await ctx.db.get(userId) as Doc<"users"> | null;
+    const email = user?.email ?? "";
+    const name = user?.name ?? email.split("@")[0];
 
     return ctx.db.insert("userProfiles", {
       userId,

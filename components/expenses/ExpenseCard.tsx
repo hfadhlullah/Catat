@@ -1,6 +1,7 @@
 import { formatIDR } from "@/lib/currency";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import Image from "next/image";
 
 interface ExpenseCardProps {
   expense: {
@@ -48,9 +49,11 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
       </div>
       {expense.receiptUrl && (
         <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-          <img
+          <Image
             src={expense.receiptUrl}
             alt="receipt"
+            width={56}
+            height={56}
             className="w-14 h-14 object-cover rounded-lg border border-zinc-700"
           />
         </a>

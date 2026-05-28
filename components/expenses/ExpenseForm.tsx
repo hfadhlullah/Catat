@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -65,17 +67,16 @@ export function ExpenseForm() {
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { date: new Date() },
   });
 
-  const selectedDate = watch("date");
-  const selectedCategoryId = watch("categoryId");
-  const selectedVendorId = watch("vendorId");
-  const selectedVendor = vendors?.find((v) => v._id === selectedVendorId);
+  const selectedDate = useWatch({ control, name: "date" });
+  const selectedCategoryId = useWatch({ control, name: "categoryId" });
+  const selectedVendorId = useWatch({ control, name: "vendorId" });
 
   useEffect(() => {
     amountRef.current?.focus();
@@ -84,7 +85,7 @@ export function ExpenseForm() {
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, "");
     setAmountDisplay(formatRupiah(e.target.value));
-    setValue("amount", raw ? Number(raw) : (0 as any), { shouldValidate: true });
+    setValue("amount", raw ? Number(raw) : 0, { shouldValidate: true });
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,16 +124,16 @@ export function ExpenseForm() {
         amount: data.amount,
         description: data.description,
         date: data.date.getTime(),
-        categoryId: data.categoryId as any,
-        vendorId: data.vendorId ? (data.vendorId as any) : undefined,
+        categoryId: data.categoryId as Id<"categories">,
+        vendorId: data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
         receiptStorageId: storageId,
       });
 
       toast.success("Pengeluaran disimpan!");
       router.push("/dashboard");
-    } catch (err: any) {
-      toast.error(err.message ?? "Gagal menyimpan");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan");
     } finally {
       setUploading(false);
     }
@@ -368,9 +369,11 @@ export function ExpenseForm() {
         />
         {photoPreview ? (
           <div className="relative rounded-2xl overflow-hidden border border-zinc-700">
-            <img
+            <Image
               src={photoPreview}
               alt="preview"
+              width={800}
+              height={256}
               className="w-full max-h-64 object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />

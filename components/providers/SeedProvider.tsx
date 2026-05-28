@@ -9,7 +9,7 @@ export function SeedProvider() {
 
   useEffect(() => {
     seed().catch(() => {}); // idempotent, safe to call every mount
-  }, []);
+  }, [seed]);
 
   return null;
 }

@@ -48,7 +48,7 @@ export function LoginForm() {
     if (isAuthenticated) {
       ensureUserProfile().finally(() => router.replace("/dashboard"));
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, ensureUserProfile, router]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,9 +61,10 @@ export function LoginForm() {
 
     try {
       await signIn("password", formData);
+      console.log("[LoginForm] signIn done — waiting for isAuthenticated");
     } catch (err: unknown) {
       console.error("[LoginForm] error:", err);
-      toast.error(getAuthErrorMessage(err, mode));
+      toast.error(err instanceof Error ? err.message : "Gagal masuk. Coba lagi.");
     } finally {
       setIsLoading(false);
     }

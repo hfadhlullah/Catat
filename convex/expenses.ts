@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
+import { Id } from "./_generated/dataModel";
 
 export const generateUploadUrl = mutation({
   args: {},
@@ -51,9 +52,18 @@ export const createExpense = mutation({
 export const listExpenses = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) throw new ConvexError("Profile not found");
+
     const result = await ctx.db
       .query("expenses")
-      .withIndex("by_date")
+      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -73,6 +83,15 @@ export const listExpenses = query({
 export const getExpenseSummary = query({
   args: { period: v.string() },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) throw new ConvexError("Profile not found");
+
     // period = "YYYY-MM"
     const [year, month] = args.period.split("-").map(Number);
     const start = new Date(year, month - 1, 1).getTime();
@@ -80,7 +99,10 @@ export const getExpenseSummary = query({
 
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_date", (q) => q.gte("date", start).lt("date", end))
+      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+      .filter((q) =>
+        q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end))
+      )
       .collect();
 
     const total = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -94,7 +116,7 @@ export const getExpenseSummary = query({
 
     const byCategory = await Promise.all(
       Array.from(byCategoryMap.entries()).map(async ([catId, total]) => {
-        const category = await ctx.db.get(catId as any) as { name: string; color?: string } | null;
+        const category = await ctx.db.get(catId as Id<"categories">) as { name: string; color?: string } | null;
         return { categoryId: catId, name: category?.name ?? "Unknown", total, color: category?.color };
       })
     );
