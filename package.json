@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx convex deploy --url $NEXT_PUBLIC_CONVEX_URL --admin-key $CONVEX_SELF_HOSTED_ADMIN_KEY && next build",
+    "build": "sh -c 'if [ -n \"$CONVEX_SELF_HOSTED_ADMIN_KEY\" ]; then npx convex deploy --url \"$NEXT_PUBLIC_CONVEX_URL\" --admin-key \"$CONVEX_SELF_HOSTED_ADMIN_KEY\"; else printf \"%s\\n\" \"Skipping convex deploy: CONVEX_SELF_HOSTED_ADMIN_KEY is not set.\"; fi && next build'",
     "start": "next start",
     "lint": "eslint"
   },

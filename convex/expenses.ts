@@ -80,6 +80,26 @@ export const listExpenses = query({
   },
 });
 
+export const deleteExpense = mutation({
+  args: { id: v.id("expenses") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+
+    const expense = await ctx.db.get(args.id);
+    if (!expense) throw new ConvexError("Not found");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile || expense.submittedBy !== profile._id)
+      throw new ConvexError("Unauthorized");
+
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const getExpenseSummary = query({
   args: { period: v.string() },
   handler: async (ctx, args) => {
