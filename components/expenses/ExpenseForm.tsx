@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
@@ -19,6 +19,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   Store,
   X,
 } from "lucide-react";
@@ -54,9 +55,12 @@ export function ExpenseForm() {
   const createExpense = useMutation(api.expenses.createExpense);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
   const createVendor = useMutation(api.vendors.createVendor);
+  const extractReceipt = useAction(api.ocr.extractReceipt);
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [storageId, setStorageId] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
   const [showNewVendor, setShowNewVendor] = useState(false);
@@ -88,11 +92,66 @@ export function ExpenseForm() {
     setValue("amount", raw ? Number(raw) : 0, { shouldValidate: true });
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function uploadPhoto(file: File): Promise<string> {
+    const uploadUrl = await generateUploadUrl();
+    const res = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    const { storageId } = await res.json();
+    return storageId as string;
+  }
+
+  function applyExtraction(data: {
+    amount: number | null;
+    date: string | null;
+    vendor: string | null;
+    description: string | null;
+  }) {
+    if (data.amount && data.amount > 0) {
+      setAmountDisplay(formatRupiah(String(data.amount)));
+      setValue("amount", data.amount, { shouldValidate: true });
+    }
+    if (data.date) {
+      const d = new Date(data.date);
+      if (!isNaN(d.getTime())) setValue("date", d);
+    }
+    if (data.description) {
+      setValue("description", data.description, { shouldValidate: true });
+    }
+    if (data.vendor) {
+      const match = vendors?.find(
+        (v) => v.name.toLowerCase() === data.vendor!.toLowerCase()
+      );
+      if (match) {
+        setValue("vendorId", match._id);
+      } else {
+        setNewVendorName(data.vendor);
+        setShowNewVendor(true);
+      }
+    }
+  }
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
+    setStorageId(null);
+
+    setScanning(true);
+    try {
+      const id = await uploadPhoto(file);
+      setStorageId(id);
+      const data = await extractReceipt({ storageId: id as Id<"_storage"> });
+      applyExtraction(data);
+      toast.success("Data nota terbaca, periksa kembali");
+    } catch {
+      toast.error("Gagal membaca nota, isi manual");
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function addNewVendor() {
@@ -112,13 +171,7 @@ export function ExpenseForm() {
 
     setUploading(true);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": photo.type },
-        body: photo,
-      });
-      const { storageId } = await res.json();
+      const receiptStorageId = storageId ?? (await uploadPhoto(photo));
 
       await createExpense({
         amount: data.amount,
@@ -127,7 +180,7 @@ export function ExpenseForm() {
         categoryId: data.categoryId as Id<"categories">,
         vendorId: data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
-        receiptStorageId: storageId,
+        receiptStorageId: receiptStorageId as Id<"_storage">,
       });
 
       toast.success("Pengeluaran disimpan!");
@@ -139,7 +192,7 @@ export function ExpenseForm() {
     }
   }
 
-  const isBusy = isSubmitting || uploading;
+  const isBusy = isSubmitting || uploading || scanning;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-6">
@@ -377,10 +430,17 @@ export function ExpenseForm() {
               className="w-full max-h-64 object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            {scanning && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 backdrop-blur-sm">
+                <Sparkles className="w-6 h-6 text-blue-400 animate-pulse" />
+                <p className="text-sm font-medium text-zinc-100">Membaca nota...</p>
+              </div>
+            )}
             <button
               type="button"
+              disabled={scanning}
               onClick={() => fileRef.current?.click()}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs text-zinc-300 border border-zinc-700 hover:border-zinc-500 transition-colors"
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs text-zinc-300 border border-zinc-700 hover:border-zinc-500 transition-colors disabled:opacity-50"
             >
               <RotateCcw className="w-3 h-3" /> Ganti foto
             </button>

@@ -16,8 +16,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
-  PieChart,
-  Pie,
 } from "recharts";
 
 const COLORS = [
