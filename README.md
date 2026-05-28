@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Catat
 
-## Getting Started
+Personal notes/finance tracker app built with Next.js and Convex (self-hosted).
 
-First, run the development server:
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 16, React 19, Tailwind CSS 4, Radix UI |
+| Backend | Convex (self-hosted via Docker) |
+| Auth | `@auth/core` via Convex Auth |
+| Charts | Recharts |
+| PWA | Serwist |
+
+---
+
+## Prerequisites
+
+- **Node.js** v18+
+- **Docker** (for Convex backend)
+- **npm** v9+
+
+---
+
+## Setup
+
+### 1. Clone & install dependencies
+
+```bash
+npm install
+```
+
+### 2. Start Convex backend
+
+```bash
+docker compose up -d
+```
+
+This starts two services:
+- **backend** — Convex database + functions engine at `http://127.0.0.1:3210`
+- **dashboard** — Convex admin UI at `http://127.0.0.1:6791`
+
+Wait until backend is healthy (auto-checked by Docker). Verify:
+
+```bash
+curl http://127.0.0.1:3210/version
+```
+
+### 3. Environment variables
+
+Already configured in `.env.local`. No changes needed for local dev.
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `CONVEX_SELF_HOSTED_URL` | `http://127.0.0.1:3210` | Convex server-side SDK URL |
+| `NEXT_PUBLIC_CONVEX_URL` | `http://127.0.0.1:3210` | Convex client-side SDK URL |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | `http://127.0.0.1:3211` | Convex HTTP actions (site proxy) |
+| `CONVEX_SELF_HOSTED_ADMIN_KEY` | (pre-set) | Admin key for self-hosted Convex |
+| `AUTH_SECRET` | (pre-set) | Auth session signing secret |
+
+### 4. Run dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Other Commands
 
-## Learn More
+```bash
+npm run build    # Production build
+npm start        # Start production server (after build)
+npm run lint     # ESLint
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Convex Dashboard
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Manage tables, functions, logs, and schema at:
 
-## Deploy on Vercel
+```
+http://127.0.0.1:6791
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Set deployment URL to `http://127.0.0.1:3210` if prompted.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Notes
+
+- This uses **Next.js 16** which has breaking changes from earlier versions. Check `node_modules/next/dist/docs/` before modifying Next.js-specific code.
+- Convex data persists in a Docker volume (`data`). To reset: `docker compose down -v`.
