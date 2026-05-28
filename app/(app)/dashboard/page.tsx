@@ -50,9 +50,17 @@ export default function DashboardPage() {
                 tick={{ fill: "#a1a1aa", fontSize: 11 }}
               />
               <Tooltip
-                formatter={(value) => formatIDR(Number(value))}
-                contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8 }}
-                labelStyle={{ color: "#f4f4f5" }}
+                cursor={{ fill: "rgba(255,255,255,0.06)" }}
+                formatter={(value) => [formatIDR(Number(value)), "Total"]}
+                contentStyle={{
+                  background: "#fafafa",
+                  border: "none",
+                  borderRadius: 10,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                  padding: "8px 12px",
+                }}
+                labelStyle={{ color: "#18181b", fontWeight: 600, fontSize: 13 }}
+                itemStyle={{ color: "#3f3f46", fontSize: 12 }}
               />
               <Bar dataKey="total" radius={[0, 4, 4, 0]}>
                 {summary.byCategory.map((entry, index) => (
