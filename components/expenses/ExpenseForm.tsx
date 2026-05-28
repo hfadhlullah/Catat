@@ -415,7 +415,7 @@ export function ExpenseForm() {
       </div>
 
       {/* ── SUBMIT ── */}
-      <div className="fixed bottom-16 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800/60 z-[60]">
+      <div className="fixed bottom-24 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800/60 z-[60]">
         <button
           type="submit"
           disabled={isBusy}
