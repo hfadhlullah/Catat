@@ -100,7 +100,6 @@ export function ExpenseForm() {
     setValue("vendorId", id);
     setNewVendorName("");
     setShowNewVendor(false);
-    setVendorOpen(false);
     toast.success("Vendor ditambahkan");
   }
 
