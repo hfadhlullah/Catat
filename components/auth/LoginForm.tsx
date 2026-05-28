@@ -64,7 +64,7 @@ export function LoginForm() {
       console.log("[LoginForm] signIn done — waiting for isAuthenticated");
     } catch (err: unknown) {
       console.error("[LoginForm] error:", err);
-      toast.error(err instanceof Error ? err.message : "Gagal masuk. Coba lagi.");
+      toast.error(getAuthErrorMessage(err, mode));
     } finally {
       setIsLoading(false);
     }
