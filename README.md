@@ -22,15 +22,15 @@ Personal notes/finance tracker app built with Next.js and Convex (self-hosted).
 
 ---
 
-## Setup
+## Run Locally
 
-### 1. Clone & install dependencies
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Start Convex backend
+### 2. Start the Convex backend
 
 ```bash
 docker compose up -d
@@ -46,9 +46,9 @@ Wait until backend is healthy (auto-checked by Docker). Verify:
 curl http://127.0.0.1:3210/version
 ```
 
-### 3. Environment variables
+### 3. Configure environment variables
 
-Already configured in `.env.local`. No changes needed for local dev.
+Create `.env.local` with these values for local development:
 
 | Variable | Value | Purpose |
 |---|---|---|
@@ -58,10 +58,44 @@ Already configured in `.env.local`. No changes needed for local dev.
 | `CONVEX_SELF_HOSTED_ADMIN_KEY` | (pre-set) | Admin key for self-hosted Convex |
 | `AUTH_SECRET` | (pre-set) | Auth session signing secret |
 
-### 4. Run dev server
+Example:
+
+```bash
+CONVEX_SELF_HOSTED_URL=http://127.0.0.1:3210
+NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3210
+NEXT_PUBLIC_CONVEX_SITE_URL=http://127.0.0.1:3211
+CONVEX_SELF_HOSTED_ADMIN_KEY=your-admin-key
+AUTH_SECRET=your-auth-secret
+```
+
+`CONVEX_SELF_HOSTED_ADMIN_KEY` is needed when you want `convex deploy` to run during a production build. If it is not set, the app build will still succeed and will skip the Convex deploy step.
+
+### 4. Run the development server
 
 ```bash
 npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Build Locally
+
+### Production build
+
+```bash
+npm run build
+```
+
+This does two things:
+- runs `convex deploy` if `CONVEX_SELF_HOSTED_ADMIN_KEY` is set
+- runs `next build`
+
+If you only want to compile the Next.js app locally, leaving `CONVEX_SELF_HOSTED_ADMIN_KEY` unset is fine.
+
+### Run the production server
+
+```bash
+npm start
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
