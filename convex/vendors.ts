@@ -6,8 +6,18 @@ import { ConvexError } from "convex/values";
 export const listVendors = query({
   args: {},
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) throw new ConvexError("Profile not found");
+
     return await ctx.db
       .query("vendors")
+      .withIndex("by_created_by", (q) => q.eq("createdBy", profile._id))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
   },
@@ -23,7 +33,14 @@ export const createVendor = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Unauthenticated");
 
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) throw new ConvexError("Profile not found");
+
     return await ctx.db.insert("vendors", {
+      createdBy: profile._id,
       name: args.name,
       phone: args.phone,
       notes: args.notes,

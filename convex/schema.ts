@@ -27,12 +27,15 @@ export default defineSchema({
   }).index("by_created_by", ["createdBy"]),
 
   vendors: defineTable({
+    createdBy: v.optional(v.id("userProfiles")),
     name: v.string(),
     phone: v.optional(v.string()),
     notes: v.optional(v.string()),
     isActive: v.boolean(),
     createdAt: v.number(),
-  }).index("by_name", ["name"]),
+  })
+    .index("by_created_by", ["createdBy"])
+    .index("by_name", ["name"]),
 
   expenses: defineTable({
     amount: v.number(),

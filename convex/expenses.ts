@@ -38,6 +38,13 @@ export const createExpense = mutation({
       throw new ConvexError("Kategori tidak valid");
     }
 
+    if (args.vendorId) {
+      const vendor = await ctx.db.get(args.vendorId);
+      if (!vendor || !vendor.isActive || vendor.createdBy !== profile._id) {
+        throw new ConvexError("Vendor tidak valid");
+      }
+    }
+
     const now = Date.now();
     return await ctx.db.insert("expenses", {
       amount: Math.round(args.amount),
