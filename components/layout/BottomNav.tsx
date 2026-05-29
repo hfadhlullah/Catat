@@ -1,33 +1,34 @@
 "use client";
 
+import { Icon, addCollection } from "@iconify/react/dist/offline";
+import { icons as solarIcons } from "@iconify-json/solar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt, Plus, User, BarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+addCollection(solarIcons);
+
 const leftItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/reports", icon: BarChart2, label: "Laporan" },
+  { href: "/dashboard", icon: "solar:home-smile-angle-bold-duotone", label: "Dashboard" },
+  { href: "/reports", icon: "solar:chart-2-bold-duotone", label: "Laporan" },
 ];
 
 const rightItems = [
-  { href: "/expenses", icon: Receipt, label: "Pengeluaran" },
-  { href: "/profile", icon: User, label: "Profil" },
+  { href: "/expenses", icon: "solar:bill-list-bold-duotone", label: "Pengeluaran" },
+  { href: "/profile", icon: "solar:user-circle-bold-duotone", label: "Profil" },
 ];
 
-function NavItem({ href, icon: Icon, label, isActive }: { href: string; icon: React.ElementType; label: string; isActive: boolean }) {
+function NavItem({ href, icon, label, isActive }: { href: string; icon: string; label: string; isActive: boolean }) {
   return (
     <Link
       href={href}
+      aria-label={label}
       className={cn(
-        "flex flex-col items-center gap-1 px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
+        "flex items-center justify-center px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
         isActive ? "text-blue-400 bg-blue-500/10" : "text-zinc-500 hover:text-zinc-300"
       )}
     >
-      <Icon className={cn("w-5 h-5 transition-transform duration-200", isActive && "scale-110")} />
-      <span className={cn("text-[9px] font-medium leading-none", isActive ? "opacity-100" : "opacity-50")}>
-        {label}
-      </span>
+      <Icon icon={icon} className={cn("w-6 h-6 transition-transform duration-200", isActive && "scale-110")} />
     </Link>
   );
 }
@@ -47,9 +48,10 @@ export function BottomNav() {
         <div className="flex justify-center">
           <Link
             href="/expenses/new"
+            aria-label="Tambah pengeluaran"
             className="flex items-center justify-center w-13 h-13 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/40 hover:bg-blue-500 active:scale-95 transition-all duration-150"
           >
-            <Plus className="w-6 h-6 text-white" />
+            <span className="text-white text-3xl leading-none font-medium">+</span>
           </Link>
         </div>
 

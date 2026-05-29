@@ -14,6 +14,7 @@ const convexHostname = getConvexHostname();
 
 const nextConfig: NextConfig = {
   images: {
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       // self-hosted Convex storage (derived from env at build time)
       ...(convexHostname

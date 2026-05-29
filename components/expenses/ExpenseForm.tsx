@@ -54,6 +54,7 @@ export function ExpenseForm() {
   const vendors = useQuery(api.vendors.listVendors);
   const createExpense = useMutation(api.expenses.createExpense);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
+  const createCategory = useMutation(api.categories.createCategory);
   const createVendor = useMutation(api.vendors.createVendor);
   const extractReceipt = useAction(api.ocr.extractReceipt);
 
@@ -62,10 +63,15 @@ export function ExpenseForm() {
   const [storageId, setStorageId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("");
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
   const [showNewVendor, setShowNewVendor] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const {
     register,
@@ -163,6 +169,27 @@ export function ExpenseForm() {
     toast.success("Vendor ditambahkan");
   }
 
+  async function addNewCategory() {
+    if (!newCategoryName.trim()) return;
+    setCreatingCategory(true);
+    try {
+      const id = await createCategory({
+        name: newCategoryName.trim(),
+        icon: newCategoryIcon.trim() || undefined,
+      });
+      setValue("categoryId", id, { shouldValidate: true });
+      setCategorySearch("");
+      setNewCategoryName("");
+      setNewCategoryIcon("");
+      setShowNewCategory(false);
+      toast.success("Kategori ditambahkan");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal menambahkan kategori");
+    } finally {
+      setCreatingCategory(false);
+    }
+  }
+
   async function onSubmit(data: FormValues) {
     if (!photo) {
       toast.error("Foto nota diperlukan");
@@ -193,6 +220,9 @@ export function ExpenseForm() {
   }
 
   const isBusy = isSubmitting || uploading || scanning;
+  const filteredCategories = (categories ?? []).filter((cat) =>
+    cat.name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-6">
@@ -219,7 +249,66 @@ export function ExpenseForm() {
 
       {/* ── CATEGORY ── */}
       <div className="space-y-2">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest px-1">Kategori</p>
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Kategori</p>
+          {!showNewCategory && (
+            <button
+              type="button"
+              onClick={() => setShowNewCategory(true)}
+              className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <Plus className="w-3 h-3" /> Kategori baru
+            </button>
+          )}
+        </div>
+
+        {showNewCategory && (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-1 sm:flex sm:flex-wrap">
+            <input
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewCategory())}
+              placeholder="Nama kategori"
+              autoFocus
+              disabled={creatingCategory}
+              className="min-w-0 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-blue-600 transition-colors sm:min-w-[12rem] sm:flex-1"
+            />
+            <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 min-w-0 sm:min-w-[10rem]">
+              <span className="text-lg leading-none" aria-hidden="true">
+                {newCategoryIcon.trim() || "🙂"}
+              </span>
+              <input
+                value={newCategoryIcon}
+                onChange={(e) => setNewCategoryIcon(e.target.value)}
+                placeholder="Select Emoji"
+                disabled={creatingCategory}
+                className="w-24 bg-transparent text-sm text-zinc-50 placeholder:text-zinc-600 outline-none"
+              />
+            </div>
+            <div className="col-span-2 flex gap-2 sm:col-auto">
+              <button
+                type="button"
+                disabled={creatingCategory}
+                onClick={addNewCategory}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50 sm:flex-none"
+              >
+                {creatingCategory ? "Menambah..." : "Tambah"}
+              </button>
+              <button
+                type="button"
+                disabled={creatingCategory}
+                onClick={() => {
+                  setNewCategoryName("");
+                  setNewCategoryIcon("");
+                  setShowNewCategory(false);
+                }}
+                className="h-10 w-10 shrink-0 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
+              >
+                <X className="mx-auto w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative">
@@ -245,11 +334,7 @@ export function ExpenseForm() {
         {/* Chips — native horizontal scroll for touch */}
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
           <div className="flex gap-2 pb-1 w-max">
-            {(categories ?? [])
-              .filter((cat) =>
-                cat.name.toLowerCase().includes(categorySearch.toLowerCase())
-              )
-              .map((cat) => {
+            {filteredCategories.map((cat) => {
                 const active = selectedCategoryId === cat._id;
                 return (
                   <button
@@ -269,12 +354,12 @@ export function ExpenseForm() {
                   </button>
                 );
               })}
-            {categories !== undefined &&
-              categories.filter((c) =>
-                c.name.toLowerCase().includes(categorySearch.toLowerCase())
-              ).length === 0 && (
-                <p className="text-xs text-zinc-600 py-2">Tidak ditemukan</p>
-              )}
+            {categories !== undefined && categories.length === 0 && (
+              <p className="text-xs text-zinc-600 py-2">Belum ada kategori. Tambah di atas.</p>
+            )}
+            {categories !== undefined && categories.length > 0 && filteredCategories.length === 0 && (
+              <p className="text-xs text-zinc-600 py-2">Tidak ditemukan</p>
+            )}
           </div>
         </div>
 
@@ -288,7 +373,7 @@ export function ExpenseForm() {
         {/* Date */}
         <div className="p-4">
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">Tanggal</p>
-          <Popover>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
@@ -303,7 +388,11 @@ export function ExpenseForm() {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(d: Date | undefined) => d && setValue("date", d)}
+                onSelect={(d: Date | undefined) => {
+                  if (!d) return;
+                  setValue("date", d);
+                  setDatePickerOpen(false);
+                }}
               />
             </PopoverContent>
           </Popover>
@@ -380,29 +469,31 @@ export function ExpenseForm() {
 
         {/* New vendor input */}
         {showNewVendor && (
-          <div className="flex gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
             <input
               value={newVendorName}
               onChange={(e) => setNewVendorName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewVendor())}
               placeholder="Nama vendor baru"
               autoFocus
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-blue-600 transition-colors"
+              className="min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-blue-600 transition-colors"
             />
-            <button
-              type="button"
-              onClick={addNewVendor}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
-            >
-              Tambah
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowNewVendor(false)}
-              className="p-2 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="col-span-2 flex gap-2 sm:col-auto">
+              <button
+                type="button"
+                onClick={addNewVendor}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors sm:flex-none"
+              >
+                Tambah
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNewVendor(false)}
+                className="h-10 w-10 shrink-0 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <X className="mx-auto w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>

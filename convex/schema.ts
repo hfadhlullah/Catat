@@ -17,12 +17,13 @@ export default defineSchema({
     .index("by_email", ["email"]),
 
   categories: defineTable({
+    createdBy: v.optional(v.id("userProfiles")),
     name: v.string(),
     color: v.optional(v.string()),
     icon: v.optional(v.string()),
     isActive: v.boolean(),
     createdAt: v.number(),
-  }),
+  }).index("by_created_by", ["createdBy"]),
 
   vendors: defineTable({
     name: v.string(),

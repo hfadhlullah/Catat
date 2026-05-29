@@ -33,6 +33,11 @@ export const createExpense = mutation({
       .unique();
     if (!profile) throw new ConvexError("Profile not found");
 
+    const category = await ctx.db.get(args.categoryId);
+    if (!category || !category.isActive || category.createdBy !== profile._id) {
+      throw new ConvexError("Kategori tidak valid");
+    }
+
     const now = Date.now();
     return await ctx.db.insert("expenses", {
       amount: Math.round(args.amount),
