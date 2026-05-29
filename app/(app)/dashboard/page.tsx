@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { formatIDR } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { CatatLogo } from "@/components/brand/CatatLogo";
@@ -23,6 +25,7 @@ import {
   Pie,
   CartesianGrid,
 } from "recharts";
+import { UserPlus, Check, X } from "lucide-react";
 
 const COLORS = [
   "#3b82f6",
@@ -39,10 +42,26 @@ const COLORS = [
 
 export default function DashboardPage() {
   const period = format(new Date(), "yyyy-MM");
-  const summary = useQuery(api.expenses.getExpenseSummary, { period });
-  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, { period });
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+  const summary = useQuery(api.expenses.getExpenseSummary, {
+    period,
+    walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
+  });
+  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, {
+    period,
+    walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
+  });
+  const pendingInvites = useQuery(api.walletSharing.listPendingInvites);
+  const acceptInvite = useMutation(api.walletSharing.acceptInvite);
+  const rejectInvite = useMutation(api.walletSharing.rejectInvite);
+  const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (walletOverview?.wallets.length && !selectedWalletId) {
+      setSelectedWalletId(walletOverview.wallets[0]._id);
+    }
+  }, [walletOverview]);
 
   const selectedWallet =
     walletOverview?.wallets.find((wallet) => wallet._id === selectedWalletId) ??
@@ -86,6 +105,65 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {pendingInvites && pendingInvites.length > 0 && (
+        <div className="space-y-2">
+          {pendingInvites.map((invite) => (
+            <div key={invite._id} className="relative rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-medium text-foreground">Undangan Wallet</p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{invite.fromUser?.name}</span> mengundang Anda ke wallet{" "}
+                    <span className="font-medium text-foreground">{invite.wallet?.label || invite.wallet?.name}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setProcessingInviteId(invite._id);
+                      try {
+                        await acceptInvite({ inviteId: invite._id });
+                        toast.success("Undangan diterima");
+                      } catch {
+                        toast.error("Gagal menerima undangan");
+                      } finally {
+                        setProcessingInviteId(null);
+                      }
+                    }}
+                    disabled={processingInviteId === invite._id}
+                    className="rounded-lg bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setProcessingInviteId(invite._id);
+                      try {
+                        await rejectInvite({ inviteId: invite._id });
+                        toast.success("Undangan ditolak");
+                      } catch {
+                        toast.error("Gagal menolak undangan");
+                      } finally {
+                        setProcessingInviteId(null);
+                      }
+                    }}
+                    disabled={processingInviteId === invite._id}
+                    className="rounded-lg border border-border bg-background p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {walletOverview && walletOverview.wallets.length > 0 && (
         <div className="overflow-x-auto scrollbar-hide -mx-4">

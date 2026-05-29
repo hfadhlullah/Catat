@@ -33,6 +33,8 @@ interface ExpenseCardProps {
     wallet?: { name: string } | null;
     vendor?: { name: string } | null;
     receiptUrl?: string | null;
+    submitterName?: string;
+    isOwn?: boolean;
   };
 }
 
@@ -93,6 +95,9 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
             {expense.wallet && (
               <span className="text-xs text-muted-foreground">{expense.wallet.name}</span>
             )}
+            {expense.submitterName && expense.isOwn === false && (
+              <span className="text-xs font-medium text-primary">Dibuat oleh {expense.submitterName}</span>
+            )}
             {installmentCount > 1 && (
               <span className="text-xs text-muted-foreground">
                 {installmentCount}x • {installmentRate}% • {formatIDR(perInstallment)}/cicilan
@@ -135,27 +140,29 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
         )}
       </div>
 
-      <div className="px-4 pb-3 flex justify-end gap-2">
-        <Link
-          href={`/expenses/${expense._id}/edit`}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-foreground"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-          Edit
-        </Link>
-        <button
-          onClick={handleDelete}
-          className={cn(
-            "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all duration-150",
-            confirming
-              ? "border border-destructive/40 bg-destructive/10 text-destructive"
-              : "text-muted-foreground hover:bg-accent hover:text-destructive"
-          )}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          {confirming ? "Yakin hapus?" : "Hapus"}
-        </button>
-      </div>
+      {(expense.isOwn === undefined || expense.isOwn) && (
+        <div className="px-4 pb-3 flex justify-end gap-2">
+          <Link
+            href={`/expenses/${expense._id}/edit`}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-foreground"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </Link>
+          <button
+            onClick={handleDelete}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all duration-150",
+              confirming
+                ? "border border-destructive/40 bg-destructive/10 text-destructive"
+                : "text-muted-foreground hover:bg-accent hover:text-destructive"
+            )}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {confirming ? "Yakin hapus?" : "Hapus"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

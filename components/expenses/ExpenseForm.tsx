@@ -441,7 +441,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
                     : "border-border bg-background text-muted-foreground hover:border-primary/30"
                 )}
               >
-                {wallet.name}
+                {wallet.label || wallet.name}
               </button>
             );
           })}

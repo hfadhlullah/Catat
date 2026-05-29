@@ -4,7 +4,20 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
 import { Id } from "./_generated/dataModel";
 
-import { getCurrentProfile } from "./profile";
+import { getCurrentProfile, getAccessibleProfileIds } from "./profile";
+
+async function hasWalletAccess(ctx: MutationCtx | any, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
+  const wallet = await ctx.db.get(walletId);
+  if (!wallet || !wallet.isActive) return false;
+  if (wallet.createdBy === profileId) return true;
+
+  const member = await ctx.db
+    .query("walletMembers")
+    .withIndex("by_wallet_user", (q: any) => q.eq("walletId", walletId).eq("userId", profileId))
+    .unique();
+
+  return !!member;
+}
 
 function getInstallmentSnapshot(expense: {
   amount: number;
@@ -52,21 +65,23 @@ async function validateExpensePayload(
     installmentRate?: number;
   }
 ) {
+  const accessibleIds = await getAccessibleProfileIds(ctx, profileId as string);
+
   const category = await ctx.db.get(args.categoryId);
-  if (!category || !category.isActive || category.createdBy !== profileId) {
+  if (!category || !category.isActive || !accessibleIds.includes(category.createdBy as string)) {
     throw new ConvexError("Kategori tidak valid");
   }
 
   if (args.vendorId) {
     const vendor = await ctx.db.get(args.vendorId);
-    if (!vendor || !vendor.isActive || vendor.createdBy !== profileId) {
+    if (!vendor || !vendor.isActive || !accessibleIds.includes(vendor.createdBy as string)) {
       throw new ConvexError("Vendor tidak valid");
     }
   }
 
   if (args.walletId) {
-    const wallet = await ctx.db.get(args.walletId);
-    if (!wallet || !wallet.isActive || wallet.createdBy !== profileId) {
+    const hasAccess = await hasWalletAccess(ctx, profileId, args.walletId);
+    if (!hasAccess) {
       throw new ConvexError("Wallet tidak valid");
     }
   }
@@ -200,7 +215,14 @@ export const getExpenseById = query({
 
     const expense = await ctx.db.get(args.id);
     if (!expense) throw new ConvexError("Not found");
-    if (expense.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
+
+    const isOwner = expense.submittedBy === profile._id;
+    let isShared = false;
+    if (expense.walletId) {
+      isShared = await hasWalletAccess(ctx, profile._id, expense.walletId);
+    }
+
+    if (!isOwner && !isShared) throw new ConvexError("Unauthorized");
 
     const category = await ctx.db.get(expense.categoryId);
     const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
@@ -279,33 +301,60 @@ export const listExpenses = query({
     paginationOpts: paginationOptsValidator,
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    walletId: v.optional(v.id("wallets")),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
 
-    let expensesQuery = ctx.db
-      .query("expenses")
-      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
-      .order("desc");
+    let result;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
 
-    if (args.startDate !== undefined || args.endDate !== undefined) {
-      expensesQuery = expensesQuery.filter((q) => {
-        if (args.startDate !== undefined && args.endDate !== undefined) {
-          return q.and(
-            q.gte(q.field("date"), args.startDate),
-            q.lte(q.field("date"), args.endDate)
-          );
-        }
+      let expensesQuery = ctx.db
+        .query("expenses")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .order("desc");
 
-        if (args.startDate !== undefined) {
-          return q.gte(q.field("date"), args.startDate);
-        }
+      if (args.startDate !== undefined || args.endDate !== undefined) {
+        expensesQuery = expensesQuery.filter((q) => {
+          if (args.startDate !== undefined && args.endDate !== undefined) {
+            return q.and(
+              q.gte(q.field("date"), args.startDate),
+              q.lte(q.field("date"), args.endDate)
+            );
+          }
+          if (args.startDate !== undefined) {
+            return q.gte(q.field("date"), args.startDate);
+          }
+          return q.lte(q.field("date"), args.endDate!);
+        });
+      }
 
-        return q.lte(q.field("date"), args.endDate!);
-      });
+      result = await expensesQuery.paginate(args.paginationOpts);
+    } else {
+      let expensesQuery = ctx.db
+        .query("expenses")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .order("desc");
+
+      if (args.startDate !== undefined || args.endDate !== undefined) {
+        expensesQuery = expensesQuery.filter((q) => {
+          if (args.startDate !== undefined && args.endDate !== undefined) {
+            return q.and(
+              q.gte(q.field("date"), args.startDate),
+              q.lte(q.field("date"), args.endDate)
+            );
+          }
+          if (args.startDate !== undefined) {
+            return q.gte(q.field("date"), args.startDate);
+          }
+          return q.lte(q.field("date"), args.endDate!);
+        });
+      }
+
+      result = await expensesQuery.paginate(args.paginationOpts);
     }
-
-    const result = await expensesQuery.paginate(args.paginationOpts);
 
     const page = await Promise.all(
       result.page.map(async (expense) => {
@@ -315,7 +364,16 @@ export const listExpenses = query({
         const receiptUrl = expense.receiptStorageId
           ? await ctx.storage.getUrl(expense.receiptStorageId)
           : null;
-        return { ...expense, category, vendor, wallet, receiptUrl };
+        const submitter = await ctx.db.get(expense.submittedBy);
+        return {
+          ...expense,
+          category,
+          vendor,
+          wallet,
+          receiptUrl,
+          submitterName: submitter?.name ?? "User",
+          isOwn: expense.submittedBy === profile._id,
+        };
       })
     );
 
@@ -337,7 +395,7 @@ export const deleteExpense = mutation({
 });
 
 export const getExpenseSummary = query({
-  args: { period: v.string() },
+  args: { period: v.string(), walletId: v.optional(v.id("wallets")) },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
 
@@ -346,13 +404,27 @@ export const getExpenseSummary = query({
     const start = new Date(year, month - 1, 1).getTime();
     const end = new Date(year, month, 1).getTime();
 
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
-      .filter((q) =>
-        q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end))
-      )
-      .collect();
+    let expenses;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
+
+      expenses = await ctx.db
+        .query("expenses")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .filter((q) =>
+          q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end))
+        )
+        .collect();
+    } else {
+      expenses = await ctx.db
+        .query("expenses")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .filter((q) =>
+          q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end))
+        )
+        .collect();
+    }
 
     const total = expenses.reduce((sum, e) => sum + e.amount, 0);
     const count = expenses.length;
@@ -375,15 +447,27 @@ export const getExpenseSummary = query({
 });
 
 export const getInstallmentOverview = query({
-  args: { period: v.string() },
+  args: { period: v.string(), walletId: v.optional(v.id("wallets")) },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
 
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
-      .order("desc")
-      .collect();
+    let expenses;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
+
+      expenses = await ctx.db
+        .query("expenses")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .order("desc")
+        .collect();
+    } else {
+      expenses = await ctx.db
+        .query("expenses")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .order("desc")
+        .collect();
+    }
 
     const installmentExpenses = expenses.filter((expense) => (expense.installmentCount ?? 1) > 1);
 

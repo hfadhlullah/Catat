@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
+import Image from "next/image";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { formatIDR } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { format, subMonths, addMonths } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -24,16 +27,23 @@ const COLORS = [
   "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
 ];
 
-function useLast6Months(endDate: Date) {
+function useLast6Months(endDate: Date, walletId?: string) {
   const periods = Array.from({ length: 6 }, (_, i) =>
     format(subMonths(endDate, 5 - i), "yyyy-MM")
   );
-  const q0 = useQuery(api.expenses.getExpenseSummary, { period: periods[0] });
-  const q1 = useQuery(api.expenses.getExpenseSummary, { period: periods[1] });
-  const q2 = useQuery(api.expenses.getExpenseSummary, { period: periods[2] });
-  const q3 = useQuery(api.expenses.getExpenseSummary, { period: periods[3] });
-  const q4 = useQuery(api.expenses.getExpenseSummary, { period: periods[4] });
-  const q5 = useQuery(api.expenses.getExpenseSummary, { period: periods[5] });
+  const wid = walletId ? (walletId as Id<"wallets">) : undefined;
+  const args0 = { period: periods[0], walletId: wid };
+  const args1 = { period: periods[1], walletId: wid };
+  const args2 = { period: periods[2], walletId: wid };
+  const args3 = { period: periods[3], walletId: wid };
+  const args4 = { period: periods[4], walletId: wid };
+  const args5 = { period: periods[5], walletId: wid };
+  const q0 = useQuery(api.expenses.getExpenseSummary, args0);
+  const q1 = useQuery(api.expenses.getExpenseSummary, args1);
+  const q2 = useQuery(api.expenses.getExpenseSummary, args2);
+  const q3 = useQuery(api.expenses.getExpenseSummary, args3);
+  const q4 = useQuery(api.expenses.getExpenseSummary, args4);
+  const q5 = useQuery(api.expenses.getExpenseSummary, args5);
 
   return [q0, q1, q2, q3, q4, q5].map((q, i) => ({
     period: periods[i],
@@ -46,13 +56,32 @@ function useLast6Months(endDate: Date) {
 export default function ReportsPage() {
   const [current, setCurrent] = useState(new Date());
   const period = format(current, "yyyy-MM");
-  const summary = useQuery(api.expenses.getExpenseSummary, { period });
-  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, { period });
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
-  const trend = useLast6Months(current);
+  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+
+  useEffect(() => {
+    if (walletOverview?.wallets.length && !selectedWalletId) {
+      setSelectedWalletId(walletOverview.wallets[0]._id);
+    }
+  }, [walletOverview]);
+
+  const selectedWalletIdCast = selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined;
+  const summary = useQuery(api.expenses.getExpenseSummary, {
+    period,
+    walletId: selectedWalletIdCast,
+  });
+  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, {
+    period,
+    walletId: selectedWalletIdCast,
+  });
+  const trend = useLast6Months(current, selectedWalletId || undefined);
 
   const monthName = format(current, "MMMM yyyy", { locale: idLocale });
   const isLoading = summary === undefined;
+
+  const selectedWallet =
+    walletOverview?.wallets.find((wallet) => wallet._id === selectedWalletId) ??
+    walletOverview?.wallets[0];
 
   return (
     <div className="relative p-4 max-w-lg mx-auto space-y-5 pb-6">
@@ -90,10 +119,47 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {walletOverview && walletOverview.wallets.length > 0 && (
+        <div className="overflow-x-auto scrollbar-hide -mx-4">
+          <div className="flex w-max items-end gap-2 px-4">
+            {walletOverview.wallets.map((wallet) => {
+              const active = selectedWallet?._id === wallet._id;
+              return (
+                <button
+                  key={wallet._id}
+                  type="button"
+                  onClick={() => setSelectedWalletId(active ? "" : wallet._id)}
+                  className={cn(
+                    "min-w-[9rem] shrink-0 rounded-t-2xl border border-b-0 px-4 py-3 text-left transition-all duration-200",
+                    active
+                      ? "bg-card text-foreground shadow-[2px_0px_0px_0px_rgba(0,0,0,0.05)] dark:shadow-[2px_0px_0px_0px_rgba(255,255,255,0.05)]"
+                      : "bg-muted/70 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {wallet.logo ? (
+                    <Image
+                      src={`/bank-logo/${wallet.logo}`}
+                      alt={wallet.name}
+                      width={20}
+                      height={20}
+                      className="h-5 w-auto object-contain"
+                    />
+                  ) : (
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+                  )}
+                  <p className="mt-1 text-sm font-semibold">{wallet.label || wallet.name}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Total */}
-      <div className="relative rounded-2xl border border-border bg-card p-5
-        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
-        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+      <div className={cn(
+        "relative rounded-2xl border border-border bg-card p-5 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]",
+        walletOverview?.wallets.length ? "-mt-5 rounded-t-none pt-6" : ""
+      )}>
         <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
 
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -214,6 +280,34 @@ export default function ReportsPage() {
           </div>
         ) : walletOverview.wallets.length === 0 ? (
           <p className="text-sm text-muted-foreground">Belum ada wallet pada akun ini.</p>
+        ) : selectedWalletId ? (
+          <div className="space-y-3">
+            {selectedWallet && (
+              <div className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{selectedWallet.label || selectedWallet.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Saldo {formatIDR(selectedWallet.balance)}</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p>Income {formatIDR(selectedWallet.monthIncome)}</p>
+                    <p className="mt-1">Expense {formatIDR(selectedWallet.monthExpense)}</p>
+                  </div>
+                </div>
+                {selectedWallet.budgetAmount > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Budget {formatIDR(selectedWallet.budgetAmount)}</span>
+                      <span>Sisa {formatIDR(selectedWallet.budgetRemaining)}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${selectedWallet.budgetUsedPct}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-3">
             <div className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3">
@@ -231,7 +325,7 @@ export default function ReportsPage() {
               <div key={wallet._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{wallet.name}</p>
+                    <p className="text-sm font-medium text-foreground">{wallet.label || wallet.name}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Saldo {formatIDR(wallet.balance)}</p>
                   </div>
                   <div className="text-right text-xs text-muted-foreground">

@@ -19,6 +19,7 @@ import type * as profile from "../profile.js";
 import type * as users from "../users.js";
 import type * as vendors from "../vendors.js";
 import type * as walletBudgets from "../walletBudgets.js";
+import type * as walletSharing from "../walletSharing.js";
 import type * as wallets from "../wallets.js";
 
 import type {
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   vendors: typeof vendors;
   walletBudgets: typeof walletBudgets;
+  walletSharing: typeof walletSharing;
   wallets: typeof wallets;
 }>;
 

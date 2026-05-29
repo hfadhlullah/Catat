@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
+import { getAccessibleProfileIds } from "./profile";
 
 export const listCategories = query({
   args: {},
@@ -14,11 +15,14 @@ export const listCategories = query({
       .unique();
     if (!profile) throw new ConvexError("Profile not found");
 
-    return await ctx.db
+    const accessibleIds = await getAccessibleProfileIds(ctx, profile._id as string);
+
+    const all = await ctx.db
       .query("categories")
-      .withIndex("by_created_by", (q) => q.eq("createdBy", profile._id))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
+
+    return all.filter((cat) => accessibleIds.includes(cat.createdBy as string));
   },
 });
 

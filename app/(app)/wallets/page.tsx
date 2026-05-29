@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { CalendarIcon, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, ChevronDown, Pencil, Plus, Trash2, Users, UserPlus, X } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -123,17 +123,31 @@ export default function WalletsPage() {
   const period = format(new Date(), "yyyy-MM");
   const overview = useQuery(api.wallets.getWalletOverview, { period });
   const incomes = useQuery(api.incomes.listRecentIncome);
+  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+
+  useEffect(() => {
+    if (overview?.wallets.length && !selectedWalletId) {
+      setSelectedWalletId(overview.wallets[0]._id);
+    }
+  }, [overview]);
+
+  const members = useQuery(
+    api.walletSharing.listMembers,
+    selectedWalletId ? { walletId: selectedWalletId as Id<"wallets"> } : "skip"
+  );
+  const currentProfile = useQuery(api.profile.getCurrentProfileQuery);
   const createWallet = useMutation(api.wallets.createWallet);
   const updateWallet = useMutation(api.wallets.updateWallet);
   const deleteWallet = useMutation(api.wallets.deleteWallet);
   const createIncome = useMutation(api.incomes.createIncome);
   const upsertBudget = useMutation(api.walletBudgets.upsertWalletBudget);
   const deleteBudget = useMutation(api.walletBudgets.deleteWalletBudget);
+  const inviteMember = useMutation(api.walletSharing.inviteMember);
+  const removeMember = useMutation(api.walletSharing.removeMember);
 
   const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
   const [walletLabel, setWalletLabel] = useState("");
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
-  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const [incomeDescription, setIncomeDescription] = useState("");
   const [incomeAmountInput, setIncomeAmountInput] = useState("");
   const [incomeDate, setIncomeDate] = useState(new Date());
@@ -152,6 +166,10 @@ export default function WalletsPage() {
   const [deletingBudget, setDeletingBudget] = useState(false);
   const [confirmDeleteWalletOpen, setConfirmDeleteWalletOpen] = useState(false);
   const [confirmDeleteBudgetOpen, setConfirmDeleteBudgetOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [removingMember, setRemovingMember] = useState(false);
 
   async function handleEditWallet(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -285,6 +303,40 @@ export default function WalletsPage() {
       toast.error(error instanceof Error ? error.message : "Gagal menghapus budget");
     } finally {
       setDeletingBudget(false);
+    }
+  }
+
+  async function handleInviteMember(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedWallet) return;
+    setSendingInvite(true);
+    try {
+      await inviteMember({
+        walletId: selectedWallet._id as Id<"wallets">,
+        email: inviteEmail.trim(),
+      });
+      setInviteEmail("");
+      toast.success("Undangan dikirim");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengirim undangan");
+    } finally {
+      setSendingInvite(false);
+    }
+  }
+
+  async function handleRemoveMember(memberUserId: string) {
+    if (!selectedWallet) return;
+    setRemovingMember(true);
+    try {
+      await removeMember({
+        walletId: selectedWallet._id as Id<"wallets">,
+        memberUserId: memberUserId as Id<"userProfiles">,
+      });
+      toast.success("Anggota dikeluarkan");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengeluarkan anggota");
+    } finally {
+      setRemovingMember(false);
     }
   }
 
@@ -494,6 +546,74 @@ export default function WalletsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+          <DialogContent className="max-w-md border-border bg-card text-card-foreground overflow-hidden sm:rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Bagikan Wallet</DialogTitle>
+              <DialogDescription>
+                Undang anggota keluarga untuk mengakses wallet <span className="font-medium text-foreground">{selectedWallet?.label || selectedWallet?.name}</span>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleInviteMember} className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="Email anggota"
+                  className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={sendingInvite || !inviteEmail.trim()}
+                  className="rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </button>
+              </div>
+            </form>
+
+            {members && members.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Anggota Saat Ini</p>
+                <div className="space-y-1.5">
+                  {members.map((member) => (
+                    <div key={member.userId} className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm text-foreground">{member.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{member.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          {member.role === "owner" ? "Pemilik" : "Anggota"}
+                        </span>
+                        {selectedWallet?.createdBy === currentProfile?._id && member.role !== "owner" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMember(member.userId)}
+                            disabled={removingMember}
+                            className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                            aria-label="Keluarkan"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       {overview && overview.wallets.length > 0 && (
@@ -551,6 +671,16 @@ export default function WalletsPage() {
                         >
                           <Pencil className="h-3 w-3" />
                         </button>
+                        {selectedWallet.createdBy === currentProfile?._id && (
+                          <button
+                            type="button"
+                            onClick={() => setShareDialogOpen(true)}
+                            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            aria-label="Bagikan wallet"
+                          >
+                            <Users className="h-3 w-3" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteWalletOpen(true)}
@@ -585,6 +715,39 @@ export default function WalletsPage() {
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                         <div className="h-full rounded-full bg-primary" style={{ width: `${selectedWallet.budgetUsedPct}%` }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {members && members.length > 1 && (
+                    <div className="mt-3 border-t border-dashed border-border pt-3">
+                      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Anggota</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {members.map((member) => (
+                          <div
+                            key={member.userId}
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2 py-1"
+                          >
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[8px] font-bold text-primary">
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs text-foreground">{member.name}</span>
+                            {member.role === "owner" && (
+                              <span className="rounded bg-primary/10 px-1 text-[8px] font-medium text-primary">Pemilik</span>
+                            )}
+                            {selectedWallet.createdBy === currentProfile?._id && member.role !== "owner" && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMember(member.userId)}
+                                disabled={removingMember}
+                                className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                aria-label="Keluarkan anggota"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

@@ -11,7 +11,33 @@ function monthRange(period: string) {
   };
 }
 
-export const listWallets = query({
+async function getAccessibleWallets(ctx: any, profileId: string) {
+  const owned = await ctx.db
+    .query("wallets")
+    .withIndex("by_created_by", (q: any) => q.eq("createdBy", profileId))
+    .filter((q: any) => q.eq(q.field("isActive"), true))
+    .collect();
+
+  const memberships = await ctx.db
+    .query("walletMembers")
+    .withIndex("by_user", (q: any) => q.eq("userId", profileId))
+    .collect();
+
+  const sharedWallets = await Promise.all(
+    memberships.map(async (m: any) => {
+      const w = await ctx.db.get(m.walletId);
+      return w && w.isActive ? w : null;
+    })
+  );
+
+  const walletMap = new Map<string, any>();
+  for (const w of owned) walletMap.set(w._id, w);
+  for (const w of sharedWallets) if (w) walletMap.set(w._id, w);
+
+  return Array.from(walletMap.values());
+}
+
+export const listOwnedWallets = query({
   args: {},
   handler: async (ctx) => {
     const profile = await getCurrentProfile(ctx);
@@ -21,6 +47,14 @@ export const listWallets = query({
       .withIndex("by_created_by", (q) => q.eq("createdBy", profile._id))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
+  },
+});
+
+export const listWallets = query({
+  args: {},
+  handler: async (ctx) => {
+    const profile = await getCurrentProfile(ctx);
+    return await getAccessibleWallets(ctx, profile._id);
   },
 });
 
@@ -97,11 +131,7 @@ export const getWalletOverview = query({
   args: { period: v.string() },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
-    const wallets = await ctx.db
-      .query("wallets")
-      .withIndex("by_created_by", (q) => q.eq("createdBy", profile._id))
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .collect();
+    const wallets = await getAccessibleWallets(ctx, profile._id);
 
     const { start, end } = monthRange(args.period);
 
@@ -113,7 +143,7 @@ export const getWalletOverview = query({
           .collect();
         const expenses = await ctx.db
           .query("expenses")
-          .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+          .withIndex("by_date", (q) => q)
           .filter((q) => q.eq(q.field("walletId"), wallet._id))
           .collect();
         const budget = await ctx.db

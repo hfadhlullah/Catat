@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { usePaginatedQuery } from "convex/react";
+import { useState, useEffect } from "react";
+import { usePaginatedQuery, useQuery } from "convex/react";
+import Image from "next/image";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { ExpenseCard } from "@/components/expenses/ExpenseCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, RotateCcw } from "lucide-react";
+import { CalendarIcon, RotateCcw, Wallet } from "lucide-react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
@@ -18,12 +20,21 @@ import { cn } from "@/lib/utils";
 export default function ExpensesPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
+  const wallets = useQuery(api.wallets.listWallets);
+  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+
+  useEffect(() => {
+    if (wallets?.length && !selectedWalletId) {
+      setSelectedWalletId(wallets[0]._id);
+    }
+  }, [wallets]);
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.expenses.listExpenses,
     {
       startDate: dateRange?.from ? startOfDay(dateRange.from).getTime() : undefined,
       endDate: dateRange?.to ? endOfDay(dateRange.to).getTime() : undefined,
+      walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
     },
     { initialNumItems: 20 }
   );
@@ -71,6 +82,53 @@ export default function ExpensesPage() {
           Pengeluaran
         </span>
       </div>
+
+      {wallets && wallets.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedWalletId("")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+              !selectedWalletId
+                ? "border-transparent bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:border-primary/30"
+            )}
+          >
+            <Wallet className="h-3 w-3" />
+            Pribadi
+          </button>
+          {wallets.map((wallet) => {
+            const active = selectedWalletId === wallet._id;
+            return (
+              <button
+                key={wallet._id}
+                type="button"
+                onClick={() => setSelectedWalletId(active ? "" : wallet._id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+                  active
+                    ? "border-transparent bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                )}
+              >
+                {wallet.logo ? (
+                  <Image
+                    src={`/bank-logo/${wallet.logo}`}
+                    alt={wallet.name}
+                    width={16}
+                    height={16}
+                    className="h-3.5 w-3.5 object-contain"
+                  />
+                ) : (
+                  <Wallet className="h-3 w-3" />
+                )}
+                {wallet.label || wallet.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="relative space-y-3 rounded-2xl border border-border bg-card p-4
         shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
@@ -138,7 +196,7 @@ export default function ExpensesPage() {
           dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
           <div className="absolute -top-2 left-1/2 -translate-x-1/2 h-4 w-24 bg-secondary/60 border border-primary/20 rounded-sm -rotate-1 z-10" />
           <p className="text-base font-medium text-foreground">
-            {hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : "Belum ada pengeluaran."}
+            {hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : selectedWalletId ? "Belum ada pengeluaran di wallet ini." : "Belum ada pengeluaran."}
           </p>
         </div>
       )}
