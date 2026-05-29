@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { CalendarIcon, ChevronDown, Plus } from "lucide-react";
+import { CalendarIcon, ChevronDown, Pencil, Plus } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
 
-const BANK_OPTIONS = [
+const WALLET_OPTIONS = [
   { name: "BCA", logo: "bca.svg" },
   { name: "BluePay", logo: "bluepay.svg" },
   { name: "BNI", logo: "bni.svg" },
@@ -46,6 +46,7 @@ const BANK_OPTIONS = [
   { name: "PayPal", logo: "paypall.svg" },
   { name: "PermataBank", logo: "permatabank.svg" },
   { name: "Visa", logo: "visa.svg" },
+  { name: "Cash", logo: "cash.svg" },
 ];
 
 function WalletFolderTabs({
@@ -56,6 +57,7 @@ function WalletFolderTabs({
   wallets: Array<{
     _id: string;
     name: string;
+    label?: string;
     logo?: string;
     balance: number;
     monthIncome: number;
@@ -93,12 +95,12 @@ function WalletFolderTabs({
                   alt={wallet.name}
                   width={20}
                   height={20}
-                  className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
+                  className="h-5 w-auto object-contain"
                 />
               ) : (
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
               )}
-              <p className="mt-1 text-sm font-semibold">{wallet.name}</p>
+              <p className="mt-1 text-sm font-semibold">{wallet.label || wallet.name}</p>
             </button>
           );
         })}
@@ -122,10 +124,12 @@ export default function WalletsPage() {
   const overview = useQuery(api.wallets.getWalletOverview, { period });
   const incomes = useQuery(api.incomes.listRecentIncome);
   const createWallet = useMutation(api.wallets.createWallet);
+  const updateWallet = useMutation(api.wallets.updateWallet);
   const createIncome = useMutation(api.incomes.createIncome);
   const upsertBudget = useMutation(api.walletBudgets.upsertWalletBudget);
 
   const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
+  const [walletLabel, setWalletLabel] = useState("");
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const [incomeDescription, setIncomeDescription] = useState("");
@@ -135,9 +139,34 @@ export default function WalletsPage() {
   const [budgetAmountInput, setBudgetAmountInput] = useState("");
   const [budgetAmountInputWalletId, setBudgetAmountInputWalletId] = useState("");
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [editWalletDialogOpen, setEditWalletDialogOpen] = useState(false);
+  const [editBank, setEditBank] = useState<{ name: string; logo: string } | null>(null);
+  const [editLabel, setEditLabel] = useState("");
   const [savingWallet, setSavingWallet] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [savingIncome, setSavingIncome] = useState(false);
   const [savingBudget, setSavingBudget] = useState(false);
+
+  async function handleEditWallet(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedWallet || !editBank) return;
+
+    setSavingEdit(true);
+    try {
+      await updateWallet({
+        id: selectedWallet._id as Id<"wallets">,
+        name: editBank.name,
+        label: editLabel || undefined,
+        logo: editBank.logo,
+      });
+      setEditWalletDialogOpen(false);
+      toast.success("Wallet diperbarui");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memperbarui wallet");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   async function handleCreateWallet(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -150,10 +179,12 @@ export default function WalletsPage() {
     try {
       await createWallet({
         name: selectedBank.name,
+        label: walletLabel || undefined,
         logo: selectedBank.logo,
         initialBalance: parseAmount(walletBalanceInput),
       });
       setSelectedBank(null);
+      setWalletLabel("");
       setWalletBalanceInput("");
       setWalletDialogOpen(false);
       toast.success("Wallet ditambahkan");
@@ -268,9 +299,9 @@ export default function WalletsPage() {
 
             <form onSubmit={handleCreateWallet} className="space-y-3">
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Bank</p>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Wallet</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {BANK_OPTIONS.map((bank) => (
+                  {WALLET_OPTIONS.map((bank) => (
                     <button
                       key={bank.logo}
                       type="button"
@@ -295,6 +326,12 @@ export default function WalletsPage() {
                 </div>
               </div>
               <input
+                value={walletLabel}
+                onChange={(e) => setWalletLabel(e.target.value)}
+                placeholder="Label (opsional) — Contoh: A, Personal, Bisnis"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              <input
                 value={walletBalanceInput}
                 onChange={(e) => setWalletBalanceInput(formatAmountInput(e.target.value))}
                 placeholder="Saldo awal"
@@ -308,6 +345,60 @@ export default function WalletsPage() {
                 className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
                 {savingWallet ? "Menyimpan..." : "Simpan Wallet"}
+              </button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editWalletDialogOpen} onOpenChange={setEditWalletDialogOpen}>
+          <DialogContent className="max-w-md border-border bg-card text-card-foreground overflow-hidden sm:rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Wallet</DialogTitle>
+              <DialogDescription>
+                Ganti bank atau sumber dana wallet ini.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleEditWallet} className="space-y-3">
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Wallet</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {WALLET_OPTIONS.map((bank) => (
+                    <button
+                      key={bank.logo}
+                      type="button"
+                      onClick={() => setEditBank(bank)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all duration-150",
+                        editBank?.logo === bank.logo
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                      )}
+                    >
+                      <Image
+                        src={`/bank-logo/${bank.logo}`}
+                        alt={bank.name}
+                        width={24}
+                        height={24}
+                        className="h-6 w-6 object-contain"
+                      />
+                      <span className="text-[10px] font-medium">{bank.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="Label (opsional) — Contoh: A, Personal, Bisnis"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="submit"
+                disabled={savingEdit || !editBank}
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {savingEdit ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
             </form>
           </DialogContent>
@@ -350,8 +441,23 @@ export default function WalletsPage() {
               {selectedWallet && (
                 <div className="rounded-xl border border-border bg-background/60 px-3 py-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{selectedWallet.name}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{selectedWallet.label || selectedWallet.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const bank = WALLET_OPTIONS.find((b) => b.logo === selectedWallet.logo) ?? null;
+                            setEditBank(bank);
+                            setEditLabel(selectedWallet.label ?? "");
+                            setEditWalletDialogOpen(true);
+                          }}
+                          className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          aria-label="Edit wallet"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Income {formatIDR(selectedWallet.monthIncome)} • Expense {formatIDR(selectedWallet.monthExpense)}
                       </p>
@@ -383,7 +489,7 @@ export default function WalletsPage() {
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tambah Income</p>
           <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-            {selectedWallet?.name ?? "Pilih wallet"}
+            {selectedWallet?.label || selectedWallet?.name || "Pilih wallet"}
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10.5rem]">
@@ -441,7 +547,7 @@ export default function WalletsPage() {
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Budget Wallet Bulan Ini</p>
           <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-            {selectedWallet?.name ?? "Pilih wallet"}
+            {selectedWallet?.label || selectedWallet?.name || "Pilih wallet"}
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">

@@ -110,12 +110,12 @@ export default function DashboardPage() {
                       alt={wallet.name}
                       width={20}
                       height={20}
-                      className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
+                      className="h-5 w-auto object-contain"
                     />
                   ) : (
                     <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
                   )}
-                  <p className="mt-1 text-sm font-semibold">{wallet.name}</p>
+                   <p className="mt-1 text-sm font-semibold">{wallet.label || wallet.name}</p>
                 </button>
               );
             })}
@@ -147,7 +147,7 @@ export default function DashboardPage() {
               <div className="rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 -rotate-[0.3deg]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{selectedWallet.name}</p>
+                     <p className="text-sm font-medium text-foreground">{selectedWallet.label || selectedWallet.name}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Income {formatIDR(selectedWallet.monthIncome)} • Expense {formatIDR(selectedWallet.monthExpense)}
                     </p>

@@ -40,6 +40,7 @@ export default defineSchema({
   wallets: defineTable({
     createdBy: v.id("userProfiles"),
     name: v.string(),
+    label: v.optional(v.string()),
     logo: v.optional(v.string()),
     initialBalance: v.number(),
     isActive: v.boolean(),

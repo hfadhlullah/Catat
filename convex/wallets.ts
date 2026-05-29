@@ -27,6 +27,7 @@ export const listWallets = query({
 export const createWallet = mutation({
   args: {
     name: v.string(),
+    label: v.optional(v.string()),
     logo: v.optional(v.string()),
     initialBalance: v.number(),
   },
@@ -41,17 +42,40 @@ export const createWallet = mutation({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
-    if (existing.some((wallet) => wallet.name.toLowerCase() === name.toLowerCase())) {
+    if (existing.some((wallet) => wallet.name.toLowerCase() === name.toLowerCase() && wallet.label === args.label)) {
       throw new ConvexError("Wallet sudah ada");
     }
 
     return await ctx.db.insert("wallets", {
       createdBy: profile._id,
       name,
+      label: args.label?.trim(),
       logo: args.logo,
       initialBalance: Math.round(args.initialBalance),
       isActive: true,
       createdAt: Date.now(),
+    });
+  },
+});
+
+export const updateWallet = mutation({
+  args: {
+    id: v.id("wallets"),
+    name: v.string(),
+    label: v.optional(v.string()),
+    logo: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const wallet = await ctx.db.get(args.id);
+    if (!wallet || wallet.createdBy !== profile._id || !wallet.isActive) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+
+    await ctx.db.patch(args.id, {
+      name: args.name.trim(),
+      label: args.label?.trim(),
+      logo: args.logo,
     });
   },
 });
