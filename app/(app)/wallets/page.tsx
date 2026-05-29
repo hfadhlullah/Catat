@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { CalendarIcon, ChevronDown, Plus } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 
 import { api } from "@/convex/_generated/api";
@@ -87,9 +88,11 @@ function WalletFolderTabs({
               )}
             >
               {wallet.logo ? (
-                <img
+                <Image
                   src={`/bank-logo/${wallet.logo}`}
                   alt={wallet.name}
+                  width={20}
+                  height={20}
                   className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
                 />
               ) : (
@@ -279,9 +282,11 @@ export default function WalletsPage() {
                           : "border-border bg-background text-muted-foreground hover:border-primary/30"
                       )}
                     >
-                      <img
+                      <Image
                         src={`/bank-logo/${bank.logo}`}
                         alt={bank.name}
+                        width={24}
+                        height={24}
                         className="h-6 w-6 object-contain"
                       />
                       <span className="text-[10px] font-medium">{bank.name}</span>

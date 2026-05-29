@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { formatIDR } from "@/lib/currency";
@@ -104,9 +105,11 @@ export default function DashboardPage() {
                   )}
                 >
                   {wallet.logo ? (
-                    <img
+                    <Image
                       src={`/bank-logo/${wallet.logo}`}
                       alt={wallet.name}
+                      width={20}
+                      height={20}
                       className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
                     />
                   ) : (
