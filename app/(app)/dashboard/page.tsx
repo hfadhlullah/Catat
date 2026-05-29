@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "convex/react";
+import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { formatIDR } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { CatatLogo } from "@/components/brand/CatatLogo";
+import { cn } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -36,6 +39,13 @@ const COLORS = [
 export default function DashboardPage() {
   const period = format(new Date(), "yyyy-MM");
   const summary = useQuery(api.expenses.getExpenseSummary, { period });
+  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, { period });
+  const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
+  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+
+  const selectedWallet =
+    walletOverview?.wallets.find((wallet) => wallet._id === selectedWalletId) ??
+    walletOverview?.wallets[0];
 
   const monthName = format(new Date(), "MMMM yyyy", { locale: idLocale });
   const categoryData = [...(summary?.byCategory ?? [])]
@@ -74,6 +84,80 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
+        <Link
+          href="/wallets"
+          className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Wallet
+        </Link>
+      </div>
+
+      {walletOverview && walletOverview.wallets.length > 0 && (
+        <div className="overflow-x-auto scrollbar-hide -mx-4">
+          <div className="flex w-max items-end gap-2 px-4">
+            {walletOverview.wallets.map((wallet) => {
+              const active = selectedWallet?._id === wallet._id;
+              return (
+                <button
+                  key={wallet._id}
+                  type="button"
+                  onClick={() => setSelectedWalletId(wallet._id)}
+                  className={cn(
+                    "min-w-[9rem] shrink-0 rounded-t-2xl border border-b-0 px-4 py-3 text-left transition-all duration-200",
+                    active
+                      ? "bg-card text-foreground shadow-[2px_0px_0px_0px_rgba(0,0,0,0.05)] dark:shadow-[2px_0px_0px_0px_rgba(255,255,255,0.05)]"
+                      : "bg-muted/70 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+                  <p className="mt-1 text-sm font-semibold">{wallet.name}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className={cn(
+        "relative rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]",
+        walletOverview?.wallets.length ? "-mt-5 pt-6 rounded-t-none" : ""
+      )}>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Wallet Overview
+          </p>
+        </div>
+
+        {walletOverview === undefined ? (
+          <div className="space-y-3">
+            <Skeleton className="h-16 rounded-xl bg-muted" />
+            <Skeleton className="h-16 rounded-xl bg-muted" />
+          </div>
+        ) : walletOverview.wallets.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada wallet. Tambahkan wallet untuk mulai catat income dan budget.</p>
+        ) : (
+          <div className="space-y-3">
+            {selectedWallet && (
+              <div className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{selectedWallet.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Income {formatIDR(selectedWallet.monthIncome)} • Expense {formatIDR(selectedWallet.monthExpense)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">{formatIDR(selectedWallet.balance)}</p>
+                    {selectedWallet.budgetAmount > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">Budget sisa {formatIDR(selectedWallet.budgetRemaining)}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Total card */}
@@ -304,6 +388,99 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Cicilan Bulan Ini
+          </p>
+        </div>
+
+        {installmentOverview === undefined ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, index) => (
+              <Skeleton key={index} className="h-16 rounded-xl bg-muted" />
+            ))}
+          </div>
+        ) : installmentOverview.activeInstallments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada cicilan aktif bulan ini.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Total cicilan bulan ini</p>
+              <p className="mt-1 text-xl font-semibold text-foreground">{formatIDR(installmentOverview.activeTotal)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{installmentOverview.activeCount} cicilan aktif</p>
+            </div>
+
+            {installmentOverview.activeInstallments.map((item) => (
+              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Cicilan ke-{item.installmentNumber} dari {item.installmentCount}
+                      {item.vendor ? ` • ${item.vendor.name}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold text-foreground">{formatIDR(item.installmentAmount)}</p>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Bunga {item.installmentRate}%</span>
+                  <span>Sisa {item.remainingInstallments} cicilan</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Riwayat Cicilan
+          </p>
+        </div>
+
+        {installmentOverview === undefined ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, index) => (
+              <Skeleton key={index} className="h-16 rounded-xl bg-muted" />
+            ))}
+          </div>
+        ) : installmentOverview.history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada transaksi cicilan.</p>
+        ) : (
+          <div className="space-y-3">
+            {installmentOverview.history.map((item) => (
+              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {format(new Date(item.date), "d MMM yyyy", { locale: idLocale })}
+                      {item.category ? ` • ${item.category.name}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">{item.installmentCount}x</p>
+                    <p className="text-xs text-muted-foreground">{item.installmentRate}%</p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Total {formatIDR(item.totalWithInterest)}</span>
+                  <span>{formatIDR(item.installmentAmount)}/cicilan</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Empty state */}
       {summary?.byCategory.length === 0 && (
         <div className="relative rounded-2xl border border-border bg-card py-12 text-center
@@ -318,6 +495,13 @@ export default function DashboardPage() {
           </p>
         </div>
       )}
+
+      <Link
+        href="/reports"
+        className="flex h-14 w-full items-center justify-center rounded-2xl border border-border bg-card text-sm font-medium text-foreground transition-colors hover:bg-accent"
+      >
+        View Detail Report
+      </Link>
     </div>
   );
 }

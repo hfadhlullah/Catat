@@ -47,6 +47,8 @@ export default function ReportsPage() {
   const [current, setCurrent] = useState(new Date());
   const period = format(current, "yyyy-MM");
   const summary = useQuery(api.expenses.getExpenseSummary, { period });
+  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, { period });
+  const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const trend = useLast6Months(current);
 
   const monthName = format(current, "MMMM yyyy", { locale: idLocale });
@@ -194,6 +196,146 @@ export default function ReportsPage() {
                   </div>
                 );
               })}
+          </div>
+        )}
+      </div>
+
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Wallet Dan Budget</p>
+        </div>
+
+        {walletOverview === undefined ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl bg-muted" />)}
+          </div>
+        ) : walletOverview.wallets.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada wallet pada akun ini.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3">
+              <div className="flex items-center justify-between text-sm text-foreground">
+                <span>Income periode ini</span>
+                <span className="font-semibold">{formatIDR(walletOverview.totalMonthIncome)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm text-foreground">
+                <span>Expense periode ini</span>
+                <span className="font-semibold">{formatIDR(walletOverview.totalMonthExpense)}</span>
+              </div>
+            </div>
+
+            {walletOverview.wallets.map((wallet) => (
+              <div key={wallet._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{wallet.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Saldo {formatIDR(wallet.balance)}</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p>Income {formatIDR(wallet.monthIncome)}</p>
+                    <p className="mt-1">Expense {formatIDR(wallet.monthExpense)}</p>
+                  </div>
+                </div>
+                {wallet.budgetAmount > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Budget {formatIDR(wallet.budgetAmount)}</span>
+                      <span>Sisa {formatIDR(wallet.budgetRemaining)}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${wallet.budgetUsedPct}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cicilan Pada Periode Ini</p>
+        </div>
+
+        {installmentOverview === undefined ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl bg-muted" />)}
+          </div>
+        ) : installmentOverview.activeInstallments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Tidak ada cicilan aktif pada periode ini.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Total tagihan cicilan</p>
+              <p className="mt-1 text-xl font-semibold text-foreground">{formatIDR(installmentOverview.activeTotal)}</p>
+            </div>
+
+            {installmentOverview.activeInstallments.map((item) => (
+              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Cicilan ke-{item.installmentNumber}/{item.installmentCount}
+                      {item.vendor ? ` • ${item.vendor.name}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold text-foreground">{formatIDR(item.installmentAmount)}</p>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Total {formatIDR(item.totalWithInterest)}</span>
+                  <span>Bunga {item.installmentRate}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Riwayat Cicilan</p>
+        </div>
+
+        {installmentOverview === undefined ? (
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl bg-muted" />)}
+          </div>
+        ) : installmentOverview.history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada riwayat cicilan.</p>
+        ) : (
+          <div className="space-y-3">
+            {installmentOverview.history.map((item) => (
+              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {format(new Date(item.date), "d MMM yyyy", { locale: idLocale })}
+                      {item.category ? ` • ${item.category.name}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-foreground">{item.installmentCount}x</p>
+                    <p className="text-xs text-muted-foreground">{item.installmentRate}%</p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Total {formatIDR(item.totalWithInterest)}</span>
+                  <span>{formatIDR(item.installmentAmount)}/cicilan</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

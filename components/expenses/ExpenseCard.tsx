@@ -24,10 +24,13 @@ interface ExpenseCardProps {
   expense: {
     _id: string;
     amount: number;
+    installmentCount?: number;
+    installmentRate?: number;
     description: string;
     date: number;
     notes?: string;
     category?: { name: string; color?: string; icon?: string } | null;
+    wallet?: { name: string } | null;
     vendor?: { name: string } | null;
     receiptUrl?: string | null;
   };
@@ -37,6 +40,10 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
   const deleteExpense = useMutation(api.expenses.deleteExpense);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const installmentCount = expense.installmentCount ?? 1;
+  const installmentRate = expense.installmentRate ?? 0;
+  const totalWithInterest = Math.round(expense.amount * (1 + installmentRate / 100));
+  const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
 
   async function handleDelete() {
     if (!confirming) {
@@ -82,6 +89,14 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
             )}
             {expense.vendor && (
               <span className="text-xs text-muted-foreground">{expense.vendor.name}</span>
+            )}
+            {expense.wallet && (
+              <span className="text-xs text-muted-foreground">{expense.wallet.name}</span>
+            )}
+            {installmentCount > 1 && (
+              <span className="text-xs text-muted-foreground">
+                {installmentCount}x • {installmentRate}% • {formatIDR(perInstallment)}/cicilan
+              </span>
             )}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">

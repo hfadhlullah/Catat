@@ -26,13 +26,17 @@ import {
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
   amount: z.number().min(1, "Masukkan jumlah"),
+  installmentCount: z.number().int().min(1, "Minimal 1x"),
+  installmentRate: z.number().min(0, "Minimal 0%"),
   description: z.string().min(1, "Masukkan deskripsi"),
   date: z.date(),
   categoryId: z.string().min(1, "Pilih kategori"),
+  walletId: z.string().optional(),
   vendorId: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -45,9 +49,12 @@ interface ExpenseFormProps {
   initialExpense?: {
     _id: Id<"expenses">;
     amount: number;
+    installmentCount?: number;
+    installmentRate?: number;
     description: string;
     date: number;
     categoryId: Id<"categories">;
+    walletId?: Id<"wallets">;
     vendorId?: Id<"vendors">;
     notes?: string;
     receiptStorageId?: Id<"_storage">;
@@ -70,6 +77,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const initializedExpenseRef = useRef<string | null>(null);
 
   const categories = useQuery(api.categories.listCategories);
+  const wallets = useQuery(api.wallets.listWallets);
   const vendors = useQuery(api.vendors.listVendors);
   const createExpense = useMutation(api.expenses.createExpense);
   const updateExpense = useMutation(api.expenses.updateExpense);
@@ -103,12 +111,16 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { date: new Date() },
+    defaultValues: { date: new Date(), installmentCount: 1, installmentRate: 0 },
   });
 
   const selectedDate = useWatch({ control, name: "date" });
   const selectedCategoryId = useWatch({ control, name: "categoryId" });
+  const selectedWalletId = useWatch({ control, name: "walletId" });
   const selectedVendorId = useWatch({ control, name: "vendorId" });
+  const installmentCount = useWatch({ control, name: "installmentCount" }) ?? 1;
+  const installmentRate = useWatch({ control, name: "installmentRate" }) ?? 0;
+  const amountValue = useWatch({ control, name: "amount" }) ?? 0;
 
   useEffect(() => {
     if (mode === "create") {
@@ -122,9 +134,12 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
     reset({
       amount: initialExpense.amount,
+      installmentCount: initialExpense.installmentCount ?? 1,
+      installmentRate: initialExpense.installmentRate ?? 0,
       description: initialExpense.description,
       date: new Date(initialExpense.date),
       categoryId: initialExpense.categoryId,
+      walletId: initialExpense.walletId,
       vendorId: initialExpense.vendorId,
       notes: initialExpense.notes ?? "",
     });
@@ -255,9 +270,12 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
       const payload = {
         amount: data.amount,
+        installmentCount: data.installmentCount,
+        installmentRate: data.installmentRate,
         description: data.description,
         date: data.date.getTime(),
         categoryId: data.categoryId as Id<"categories">,
+        walletId: data.walletId ? (data.walletId as Id<"wallets">) : undefined,
         vendorId: data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
         receiptStorageId: receiptStorageId ? (receiptStorageId as Id<"_storage">) : undefined,
@@ -290,6 +308,8 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const filteredCategories = (categories ?? []).filter((cat) =>
     cat.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
+  const totalWithInterest = Math.round(amountValue * (1 + installmentRate / 100));
+  const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : 0;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-5">
@@ -314,6 +334,91 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         {errors.amount && (
           <p className="mt-2 text-xs text-destructive">{errors.amount.message}</p>
         )}
+      </div>
+
+      <div className={cn("grid gap-3 p-4 sm:grid-cols-2", cardShadow)}>
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Cicilan</p>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            {...register("installmentCount", { valueAsNumber: true })}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Isi `1` untuk pembayaran langsung.</p>
+          {errors.installmentCount && (
+            <p className="mt-1 text-xs text-destructive">{errors.installmentCount.message}</p>
+          )}
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Bunga Cicilan (%)</p>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            {...register("installmentRate", { valueAsNumber: true })}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Gunakan `0` untuk cicilan tanpa bunga tambahan.</p>
+          {errors.installmentRate && (
+            <p className="mt-1 text-xs text-destructive">{errors.installmentRate.message}</p>
+          )}
+        </div>
+
+        {amountValue > 0 && installmentCount > 1 && (
+          <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Estimasi total dibayar</span>
+              <span className="font-medium text-foreground">{formatIDR(totalWithInterest)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Per cicilan ({installmentCount}x)</span>
+              <span className="font-medium text-foreground">{formatIDR(perInstallment)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={cn("space-y-3 p-4", cardShadow)}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Wallet <span className="normal-case text-muted-foreground">(opsional)</span>
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {selectedWalletId && (
+            <button
+              type="button"
+              onClick={() => setValue("walletId", undefined)}
+              className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+            >
+              <X className="w-3 h-3" /> Hapus
+            </button>
+          )}
+          {wallets?.map((wallet) => {
+            const active = selectedWalletId === wallet._id;
+            return (
+              <button
+                key={wallet._id}
+                type="button"
+                onClick={() => setValue("walletId", active ? undefined : wallet._id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+                  active
+                    ? "border-transparent bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                )}
+              >
+                {wallet.name}
+              </button>
+            );
+          })}
+          {wallets?.length === 0 && (
+            <p className="text-xs text-muted-foreground">Belum ada wallet. Tambah dari halaman Wallet.</p>
+          )}
+        </div>
       </div>
 
       {/* ── CATEGORY ── */}
@@ -570,7 +675,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       {/* ── PHOTO ── */}
       <div className="space-y-2">
         <p className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Foto Nota <span className="normal-case text-destructive">*</span>
+          Foto Nota
         </p>
         <input
           ref={fileRef}

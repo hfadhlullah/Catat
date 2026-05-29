@@ -13,9 +13,13 @@ import type * as categories from "../categories.js";
 import type * as debugAuth from "../debugAuth.js";
 import type * as expenses from "../expenses.js";
 import type * as http from "../http.js";
+import type * as incomes from "../incomes.js";
 import type * as ocr from "../ocr.js";
+import type * as profile from "../profile.js";
 import type * as users from "../users.js";
 import type * as vendors from "../vendors.js";
+import type * as walletBudgets from "../walletBudgets.js";
+import type * as wallets from "../wallets.js";
 
 import type {
   ApiFromModules,
@@ -29,9 +33,13 @@ declare const fullApi: ApiFromModules<{
   debugAuth: typeof debugAuth;
   expenses: typeof expenses;
   http: typeof http;
+  incomes: typeof incomes;
   ocr: typeof ocr;
+  profile: typeof profile;
   users: typeof users;
   vendors: typeof vendors;
+  walletBudgets: typeof walletBudgets;
+  wallets: typeof wallets;
 }>;
 
 /**

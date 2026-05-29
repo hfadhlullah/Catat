@@ -37,11 +37,37 @@ export default defineSchema({
     .index("by_created_by", ["createdBy"])
     .index("by_name", ["name"]),
 
-  expenses: defineTable({
+  wallets: defineTable({
+    createdBy: v.id("userProfiles"),
+    name: v.string(),
+    initialBalance: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_created_by", ["createdBy"])
+    .index("by_name", ["name"]),
+
+  incomes: defineTable({
+    walletId: v.id("wallets"),
     amount: v.number(),
     description: v.string(),
     date: v.number(),
+    notes: v.optional(v.string()),
+    receivedBy: v.id("userProfiles"),
+    createdAt: v.number(),
+  })
+    .index("by_wallet", ["walletId"])
+    .index("by_received_by", ["receivedBy"])
+    .index("by_date", ["date"]),
+
+  expenses: defineTable({
+    amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
+    description: v.string(),
+    date: v.number(),
     categoryId: v.id("categories"),
+    walletId: v.optional(v.id("wallets")),
     vendorId: v.optional(v.id("vendors")),
     submittedBy: v.id("userProfiles"),
     receiptStorageId: v.optional(v.id("_storage")),
@@ -72,4 +98,16 @@ export default defineSchema({
   })
     .index("by_period", ["period"])
     .index("by_category_period", ["categoryId", "period"]),
+
+  walletBudgets: defineTable({
+    walletId: v.id("wallets"),
+    amount: v.number(),
+    period: v.string(),
+    createdBy: v.id("userProfiles"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_wallet_period", ["walletId", "period"])
+    .index("by_created_by", ["createdBy"])
+    .index("by_period", ["period"]),
 });

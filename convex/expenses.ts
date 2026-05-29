@@ -1,20 +1,44 @@
-import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
 import { Id } from "./_generated/dataModel";
 
-async function getCurrentProfile(ctx: QueryCtx | MutationCtx) {
-  const userId = await getAuthUserId(ctx);
-  if (!userId) throw new ConvexError("Unauthenticated");
+import { getCurrentProfile } from "./profile";
 
-  const profile = await ctx.db
-    .query("userProfiles")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .unique();
+function getInstallmentSnapshot(expense: {
+  amount: number;
+  date: number;
+  installmentCount?: number;
+  installmentRate?: number;
+}) {
+  const installmentCount = expense.installmentCount ?? 1;
+  const installmentRate = expense.installmentRate ?? 0;
+  const totalWithInterest = Math.round(expense.amount * (1 + installmentRate / 100));
+  const installmentAmount = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
 
-  if (!profile) throw new ConvexError("Profile not found");
-  return profile;
+  return {
+    installmentCount,
+    installmentRate,
+    totalWithInterest,
+    installmentAmount,
+  };
+}
+
+function getInstallmentPosition(expenseDate: number, period: string, installmentCount: number) {
+  const [year, month] = period.split("-").map(Number);
+  const expenseMonth = new Date(expenseDate);
+  const monthDiff =
+    (year - expenseMonth.getFullYear()) * 12 +
+    (month - 1 - expenseMonth.getMonth());
+
+  const isActive = monthDiff >= 0 && monthDiff < installmentCount;
+  return {
+    monthDiff,
+    isActive,
+    installmentNumber: isActive ? monthDiff + 1 : null,
+    remainingInstallments: isActive ? installmentCount - monthDiff - 1 : null,
+  };
 }
 
 async function validateExpensePayload(
@@ -22,7 +46,10 @@ async function validateExpensePayload(
   profileId: Id<"userProfiles">,
   args: {
     categoryId: Id<"categories">;
+    walletId?: Id<"wallets">;
     vendorId?: Id<"vendors">;
+    installmentCount?: number;
+    installmentRate?: number;
   }
 ) {
   const category = await ctx.db.get(args.categoryId);
@@ -35,6 +62,23 @@ async function validateExpensePayload(
     if (!vendor || !vendor.isActive || vendor.createdBy !== profileId) {
       throw new ConvexError("Vendor tidak valid");
     }
+  }
+
+  if (args.walletId) {
+    const wallet = await ctx.db.get(args.walletId);
+    if (!wallet || !wallet.isActive || wallet.createdBy !== profileId) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+  }
+
+  if (args.installmentCount !== undefined) {
+    if (!Number.isInteger(args.installmentCount) || args.installmentCount < 1) {
+      throw new ConvexError("Cicilan harus minimal 1x");
+    }
+  }
+
+  if (args.installmentRate !== undefined && args.installmentRate < 0) {
+    throw new ConvexError("Bunga cicilan tidak boleh negatif");
   }
 }
 
@@ -84,9 +128,12 @@ export const generateUploadUrl = mutation({
 export const createExpense = mutation({
   args: {
     amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
     description: v.string(),
     date: v.number(),
     categoryId: v.id("categories"),
+    walletId: v.optional(v.id("wallets")),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
@@ -99,9 +146,12 @@ export const createExpense = mutation({
     const now = Date.now();
     const expenseId = await ctx.db.insert("expenses", {
       amount: Math.round(args.amount),
+      installmentCount: args.installmentCount ?? 1,
+      installmentRate: args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
       description: args.description,
       date: args.date,
       categoryId: args.categoryId,
+      walletId: args.walletId,
       vendorId: args.vendorId,
       submittedBy: profile._id,
       receiptStorageId: args.receiptStorageId,
@@ -154,11 +204,12 @@ export const getExpenseById = query({
 
     const category = await ctx.db.get(expense.categoryId);
     const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
+    const wallet = expense.walletId ? await ctx.db.get(expense.walletId) : null;
     const receiptUrl = expense.receiptStorageId
       ? await ctx.storage.getUrl(expense.receiptStorageId)
       : null;
 
-    return { ...expense, category, vendor, receiptUrl };
+    return { ...expense, category, vendor, wallet, receiptUrl };
   },
 });
 
@@ -166,9 +217,12 @@ export const updateExpense = mutation({
   args: {
     id: v.id("expenses"),
     amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
     description: v.string(),
     date: v.number(),
     categoryId: v.id("categories"),
+    walletId: v.optional(v.id("wallets")),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
@@ -189,9 +243,12 @@ export const updateExpense = mutation({
 
     await ctx.db.patch(args.id, {
       amount: Math.round(args.amount),
+      installmentCount: args.installmentCount ?? 1,
+      installmentRate: args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
       description: args.description,
       date: args.date,
       categoryId: args.categoryId,
+      walletId: args.walletId,
       vendorId: args.vendorId,
       notes: args.notes,
       receiptStorageId: args.receiptStorageId,
@@ -254,10 +311,11 @@ export const listExpenses = query({
       result.page.map(async (expense) => {
         const category = await ctx.db.get(expense.categoryId);
         const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
+        const wallet = expense.walletId ? await ctx.db.get(expense.walletId) : null;
         const receiptUrl = expense.receiptStorageId
           ? await ctx.storage.getUrl(expense.receiptStorageId)
           : null;
-        return { ...expense, category, vendor, receiptUrl };
+        return { ...expense, category, vendor, wallet, receiptUrl };
       })
     );
 
@@ -313,5 +371,65 @@ export const getExpenseSummary = query({
     );
 
     return { total, count, byCategory };
+  },
+});
+
+export const getInstallmentOverview = query({
+  args: { period: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    const expenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+      .order("desc")
+      .collect();
+
+    const installmentExpenses = expenses.filter((expense) => (expense.installmentCount ?? 1) > 1);
+
+    const activeInstallments = await Promise.all(
+      installmentExpenses
+        .map(async (expense) => {
+          const snapshot = getInstallmentSnapshot(expense);
+          const position = getInstallmentPosition(expense.date, args.period, snapshot.installmentCount);
+          if (!position.isActive) return null;
+
+          const category = await ctx.db.get(expense.categoryId);
+          const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
+
+          return {
+            ...expense,
+            category,
+            vendor,
+            ...snapshot,
+            installmentNumber: position.installmentNumber,
+            remainingInstallments: position.remainingInstallments,
+          };
+        })
+    );
+
+    const history = await Promise.all(
+      installmentExpenses.slice(0, 10).map(async (expense) => {
+        const category = await ctx.db.get(expense.categoryId);
+        const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
+
+        return {
+          ...expense,
+          category,
+          vendor,
+          ...getInstallmentSnapshot(expense),
+        };
+      })
+    );
+
+    const activeItems = activeInstallments.filter((item) => item !== null);
+    const activeTotal = activeItems.reduce((sum, item) => sum + item.installmentAmount, 0);
+
+    return {
+      activeTotal,
+      activeCount: activeItems.length,
+      activeInstallments: activeItems,
+      history,
+    };
   },
 });

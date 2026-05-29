@@ -10,7 +10,7 @@ addCollection(solarIcons);
 
 const leftItems = [
   { href: "/dashboard", icon: "solar:home-smile-angle-bold-duotone", label: "Dashboard" },
-  { href: "/reports", icon: "solar:chart-2-bold-duotone", label: "Laporan" },
+  { href: "/wallets", icon: "solar:wallet-money-bold-duotone", label: "Wallet" },
 ];
 
 const rightItems = [
