@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -44,27 +44,22 @@ export default function DashboardPage() {
   const period = format(new Date(), "yyyy-MM");
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+  const effectiveSelectedWalletId = selectedWalletId || walletOverview?.wallets[0]?._id || "";
   const summary = useQuery(api.expenses.getExpenseSummary, {
     period,
-    walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
+    walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
   });
   const installmentOverview = useQuery(api.expenses.getInstallmentOverview, {
     period,
-    walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
+    walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
   });
   const pendingInvites = useQuery(api.walletSharing.listPendingInvites);
   const acceptInvite = useMutation(api.walletSharing.acceptInvite);
   const rejectInvite = useMutation(api.walletSharing.rejectInvite);
   const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (walletOverview?.wallets.length && !selectedWalletId) {
-      setSelectedWalletId(walletOverview.wallets[0]._id);
-    }
-  }, [walletOverview]);
-
   const selectedWallet =
-    walletOverview?.wallets.find((wallet) => wallet._id === selectedWalletId) ??
+    walletOverview?.wallets.find((wallet) => wallet._id === effectiveSelectedWalletId) ??
     walletOverview?.wallets[0];
 
   const monthName = format(new Date(), "MMMM yyyy", { locale: idLocale });

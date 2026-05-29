@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import Image from "next/image";
 import { api } from "@/convex/_generated/api";
@@ -22,19 +22,14 @@ export default function ExpensesPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const wallets = useQuery(api.wallets.listWallets);
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
-
-  useEffect(() => {
-    if (wallets?.length && !selectedWalletId) {
-      setSelectedWalletId(wallets[0]._id);
-    }
-  }, [wallets]);
+  const effectiveSelectedWalletId = selectedWalletId || wallets?.[0]?._id || "";
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.expenses.listExpenses,
     {
       startDate: dateRange?.from ? startOfDay(dateRange.from).getTime() : undefined,
       endDate: dateRange?.to ? endOfDay(dateRange.to).getTime() : undefined,
-      walletId: selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined,
+      walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
     },
     { initialNumItems: 20 }
   );

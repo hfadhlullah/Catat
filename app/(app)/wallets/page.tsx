@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -122,18 +122,16 @@ function formatAmountInput(value: string) {
 export default function WalletsPage() {
   const period = format(new Date(), "yyyy-MM");
   const overview = useQuery(api.wallets.getWalletOverview, { period });
-  const incomes = useQuery(api.incomes.listRecentIncome);
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
-
-  useEffect(() => {
-    if (overview?.wallets.length && !selectedWalletId) {
-      setSelectedWalletId(overview.wallets[0]._id);
-    }
-  }, [overview]);
+  const effectiveSelectedWalletId = selectedWalletId || overview?.wallets[0]?._id || "";
+  const incomes = useQuery(
+    api.incomes.listWalletIncomes,
+    effectiveSelectedWalletId ? { walletId: effectiveSelectedWalletId as Id<"wallets"> } : "skip"
+  );
 
   const members = useQuery(
     api.walletSharing.listMembers,
-    selectedWalletId ? { walletId: selectedWalletId as Id<"wallets"> } : "skip"
+    effectiveSelectedWalletId ? { walletId: effectiveSelectedWalletId as Id<"wallets"> } : "skip"
   );
   const currentProfile = useQuery(api.profile.getCurrentProfileQuery);
   const createWallet = useMutation(api.wallets.createWallet);
@@ -340,7 +338,7 @@ export default function WalletsPage() {
     }
   }
 
-  const selectedWallet = overview?.wallets.find((wallet) => wallet._id === selectedWalletId) ?? overview?.wallets[0];
+  const selectedWallet = overview?.wallets.find((wallet) => wallet._id === effectiveSelectedWalletId) ?? overview?.wallets[0];
   const budgetAmountInputValue =
     budgetAmountInputWalletId === selectedWallet?._id
       ? budgetAmountInput
@@ -864,7 +862,10 @@ export default function WalletsPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground">{income.description}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {income.wallet?.name ?? "Wallet"} • {format(new Date(income.date), "d MMM yyyy")}
+                      {format(new Date(income.date), "d MMM yyyy")}
+                      {income.receivedByName && currentProfile?._id !== income.receivedBy ? (
+                        <span className="ml-1 font-medium text-primary"> • {income.receivedByName}</span>
+                      ) : null}
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-foreground">{formatIDR(income.amount)}</p>

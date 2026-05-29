@@ -48,3 +48,38 @@ export const listRecentIncome = query({
     );
   },
 });
+
+export const listWalletIncomes = query({
+  args: { walletId: v.id("wallets") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    const wallet = await ctx.db.get(args.walletId);
+    if (!wallet || !wallet.isActive) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+
+    const isOwner = wallet.createdBy === profile._id;
+    const isMember = await ctx.db
+      .query("walletMembers")
+      .withIndex("by_wallet_user", (q) => q.eq("walletId", args.walletId).eq("userId", profile._id))
+      .unique();
+
+    if (!isOwner && !isMember) {
+      throw new ConvexError("Unauthorized");
+    }
+
+    const incomes = await ctx.db
+      .query("incomes")
+      .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+      .order("desc")
+      .take(10);
+
+    return await Promise.all(
+      incomes.map(async (income) => {
+        const receivedBy = await ctx.db.get(income.receivedBy);
+        return { ...income, receivedByName: receivedBy?.name ?? "User" };
+      })
+    );
+  },
+});

@@ -16,7 +16,7 @@ export const listVendors = query({
       .unique();
     if (!profile) throw new ConvexError("Profile not found");
 
-    const accessibleIds = await getAccessibleProfileIds(ctx, profile._id as string);
+    const accessibleIds = await getAccessibleProfileIds(ctx, profile._id);
 
     const all = await ctx.db
       .query("vendors")

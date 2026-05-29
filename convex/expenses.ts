@@ -1,4 +1,4 @@
-import { mutation, query, MutationCtx } from "./_generated/server";
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { paginationOptsValidator } from "convex/server";
@@ -6,14 +6,14 @@ import { Id } from "./_generated/dataModel";
 
 import { getCurrentProfile, getAccessibleProfileIds } from "./profile";
 
-async function hasWalletAccess(ctx: MutationCtx | any, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
+async function hasWalletAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
   const wallet = await ctx.db.get(walletId);
   if (!wallet || !wallet.isActive) return false;
   if (wallet.createdBy === profileId) return true;
 
   const member = await ctx.db
     .query("walletMembers")
-    .withIndex("by_wallet_user", (q: any) => q.eq("walletId", walletId).eq("userId", profileId))
+    .withIndex("by_wallet_user", (q) => q.eq("walletId", walletId).eq("userId", profileId))
     .unique();
 
   return !!member;
@@ -65,7 +65,7 @@ async function validateExpensePayload(
     installmentRate?: number;
   }
 ) {
-  const accessibleIds = await getAccessibleProfileIds(ctx, profileId as string);
+  const accessibleIds = await getAccessibleProfileIds(ctx, profileId);
 
   const category = await ctx.db.get(args.categoryId);
   if (!category || !category.isActive || !accessibleIds.includes(category.createdBy as string)) {

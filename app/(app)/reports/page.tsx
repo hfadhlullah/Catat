@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import Image from "next/image";
 import { api } from "@/convex/_generated/api";
@@ -58,14 +58,8 @@ export default function ReportsPage() {
   const period = format(current, "yyyy-MM");
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
-
-  useEffect(() => {
-    if (walletOverview?.wallets.length && !selectedWalletId) {
-      setSelectedWalletId(walletOverview.wallets[0]._id);
-    }
-  }, [walletOverview]);
-
-  const selectedWalletIdCast = selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined;
+  const effectiveSelectedWalletId = selectedWalletId || walletOverview?.wallets[0]?._id || "";
+  const selectedWalletIdCast = effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined;
   const summary = useQuery(api.expenses.getExpenseSummary, {
     period,
     walletId: selectedWalletIdCast,
@@ -74,13 +68,13 @@ export default function ReportsPage() {
     period,
     walletId: selectedWalletIdCast,
   });
-  const trend = useLast6Months(current, selectedWalletId || undefined);
+  const trend = useLast6Months(current, effectiveSelectedWalletId || undefined);
 
   const monthName = format(current, "MMMM yyyy", { locale: idLocale });
   const isLoading = summary === undefined;
 
   const selectedWallet =
-    walletOverview?.wallets.find((wallet) => wallet._id === selectedWalletId) ??
+    walletOverview?.wallets.find((wallet) => wallet._id === effectiveSelectedWalletId) ??
     walletOverview?.wallets[0];
 
   return (

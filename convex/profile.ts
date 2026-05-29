@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import { query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
@@ -17,20 +18,20 @@ export async function getCurrentProfile(ctx: QueryCtx | MutationCtx) {
   return profile;
 }
 
-export async function getAccessibleProfileIds(ctx: QueryCtx | MutationCtx, profileId: string) {
+export async function getAccessibleProfileIds(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">) {
   const ids = new Set<string>([profileId]);
 
   // Members of wallets I own
   const ownedWallets = await ctx.db
     .query("wallets")
-    .withIndex("by_created_by", (q: any) => q.eq("createdBy", profileId))
-    .filter((q: any) => q.eq(q.field("isActive"), true))
+    .withIndex("by_created_by", (q) => q.eq("createdBy", profileId))
+    .filter((q) => q.eq(q.field("isActive"), true))
     .collect();
 
   for (const wallet of ownedWallets) {
     const members = await ctx.db
       .query("walletMembers")
-      .withIndex("by_wallet", (q: any) => q.eq("walletId", wallet._id))
+      .withIndex("by_wallet", (q) => q.eq("walletId", wallet._id))
       .collect();
     for (const member of members) {
       ids.add(member.userId);
@@ -40,7 +41,7 @@ export async function getAccessibleProfileIds(ctx: QueryCtx | MutationCtx, profi
   // Owners of wallets I joined
   const memberships = await ctx.db
     .query("walletMembers")
-    .withIndex("by_user", (q: any) => q.eq("userId", profileId))
+    .withIndex("by_user", (q) => q.eq("userId", profileId))
     .collect();
 
   for (const membership of memberships) {

@@ -1,5 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 import { getCurrentProfile } from "./profile";
 
@@ -11,26 +13,26 @@ function monthRange(period: string) {
   };
 }
 
-async function getAccessibleWallets(ctx: any, profileId: string) {
+async function getAccessibleWallets(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">) {
   const owned = await ctx.db
     .query("wallets")
-    .withIndex("by_created_by", (q: any) => q.eq("createdBy", profileId))
-    .filter((q: any) => q.eq(q.field("isActive"), true))
+    .withIndex("by_created_by", (q) => q.eq("createdBy", profileId))
+    .filter((q) => q.eq(q.field("isActive"), true))
     .collect();
 
   const memberships = await ctx.db
     .query("walletMembers")
-    .withIndex("by_user", (q: any) => q.eq("userId", profileId))
+    .withIndex("by_user", (q) => q.eq("userId", profileId))
     .collect();
 
   const sharedWallets = await Promise.all(
-    memberships.map(async (m: any) => {
+    memberships.map(async (m) => {
       const w = await ctx.db.get(m.walletId);
       return w && w.isActive ? w : null;
     })
   );
 
-  const walletMap = new Map<string, any>();
+  const walletMap = new Map<Id<"wallets">, Doc<"wallets">>();
   for (const w of owned) walletMap.set(w._id, w);
   for (const w of sharedWallets) if (w) walletMap.set(w._id, w);
 
