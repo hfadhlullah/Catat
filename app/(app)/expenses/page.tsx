@@ -55,15 +55,29 @@ export default function ExpensesPage() {
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto space-y-4">
-      <div className="pt-4">
-        <h1 className="text-xl font-semibold text-foreground">Pengeluaran</h1>
+    <div className="relative p-4 max-w-lg mx-auto space-y-5">
+      {/* Paper texture */}
+      <div
+        className="fixed inset-0 -z-10
+          bg-[#faf9f6] dark:bg-[#0f172a]
+          bg-[radial-gradient(#e2e0d8_1px,transparent_1px)]
+          dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)]
+          [background-size:32px_32px] opacity-60 dark:opacity-40"
+        aria-hidden="true"
+      />
+
+      <div className="pt-4 flex items-center gap-2">
+        <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
+          Pengeluaran
+        </span>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="relative space-y-3 rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Filter tanggal</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filter tanggal</p>
             <p className="mt-1 text-sm text-card-foreground">{getDateFilterLabel()}</p>
           </div>
           {hasDateFilter && (
@@ -119,8 +133,13 @@ export default function ExpensesPage() {
       )}
 
       {results.length === 0 && status !== "LoadingFirstPage" && (
-        <div className="py-12 text-center text-muted-foreground">
-          <p>{hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : "Belum ada pengeluaran."}</p>
+        <div className="relative rounded-2xl border border-border bg-card py-12 text-center
+          shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+          dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 h-4 w-24 bg-secondary/60 border border-primary/20 rounded-sm -rotate-1 z-10" />
+          <p className="text-base font-medium text-foreground">
+            {hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : "Belum ada pengeluaran."}
+          </p>
         </div>
       )}
 
@@ -133,7 +152,7 @@ export default function ExpensesPage() {
       {status === "CanLoadMore" && (
         <Button
           variant="outline"
-          className="w-full"
+          className="w-full rounded-2xl border-border"
           onClick={() => loadMore(20)}
         >
           Muat lebih banyak

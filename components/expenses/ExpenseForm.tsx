@@ -61,6 +61,8 @@ function formatRupiah(value: string) {
   return new Intl.NumberFormat("id-ID").format(Number(num));
 }
 
+const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
+
 export function ExpenseForm({ mode = "create", expenseId, initialExpense }: ExpenseFormProps) {
   const router = useRouter();
   const amountRef = useRef<HTMLInputElement>(null);
@@ -299,11 +301,13 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   );
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-5">
 
       {/* ── AMOUNT ── */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">Jumlah</p>
+      <div className={cn("relative p-5", cardShadow)}>
+        <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
+
+        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Jumlah</p>
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-semibold text-muted-foreground">Rp</span>
           <input
@@ -313,7 +317,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
             value={amountDisplay}
             onChange={handleAmountChange}
             placeholder="0"
-            className="min-w-0 flex-1 bg-transparent text-4xl font-bold text-foreground outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent text-4xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         {errors.amount && (
@@ -324,7 +328,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       {/* ── CATEGORY ── */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Kategori</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Kategori</p>
           {!showNewCategory && (
             <button
               type="button"
@@ -443,10 +447,10 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </div>
 
       {/* ── DATE & DESCRIPTION ── */}
-      <div className="divide-y divide-border rounded-2xl border border-border bg-card shadow-sm">
+      <div className={cn("divide-y divide-border", cardShadow)}>
         {/* Date */}
         <div className="p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Tanggal</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tanggal</p>
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <button
@@ -474,7 +478,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
         {/* Description */}
         <div className="p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Deskripsi</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Deskripsi</p>
           <input
             {...register("description")}
             placeholder="Contoh: Beli semen 10 sak"
@@ -487,9 +491,9 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </div>
 
       {/* ── VENDOR ── */}
-      <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className={cn("space-y-3 p-4", cardShadow)}>
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Vendor <span className="normal-case text-muted-foreground">(opsional)</span>
           </p>
           {!showNewVendor && (
@@ -574,7 +578,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
       {/* ── PHOTO ── */}
       <div className="space-y-2">
-        <p className="px-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+        <p className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Foto Nota <span className="normal-case text-destructive">*</span>
         </p>
         <input
@@ -586,7 +590,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
           className="hidden"
         />
         {photoPreview ? (
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
+          <div className={cn("relative overflow-hidden", cardShadow)}>
              <Image
                src={photoPreview}
                alt={mode === "edit" ? "Preview nota pengeluaran" : "Preview nota baru"}
@@ -628,8 +632,8 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </div>
 
       {/* ── NOTES ── */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+      <div className={cn("p-4", cardShadow)}>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
         </p>
         <input
@@ -647,7 +651,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
           "w-full flex items-center justify-center h-14 rounded-2xl text-base font-semibold transition-all duration-200",
           isBusy
             ? "cursor-not-allowed bg-muted text-muted-foreground"
-            : "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-[0.98]"
+            : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]"
         )}
       >
         {uploading ? (

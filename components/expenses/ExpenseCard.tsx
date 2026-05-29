@@ -55,7 +55,10 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
   }
 
   return (
-    <div className={cn("rounded-2xl border border-border bg-card transition-opacity shadow-sm", deleting && "pointer-events-none opacity-40")}>
+    <div className={cn(
+      "relative rounded-2xl border border-border bg-card transition-opacity shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]",
+      deleting && "pointer-events-none opacity-40"
+    )}>
       <div className="p-4 flex gap-3">
         {expense.category?.icon && (
           <div className="text-2xl leading-none mt-0.5">{expense.category.icon}</div>

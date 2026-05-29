@@ -9,7 +9,6 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -69,8 +68,10 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="overflow-hidden border-border/80 bg-card shadow-xl shadow-black/5">
-      <div className="grid grid-cols-2 border-b border-border/80 bg-muted/30 p-1">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card
+      shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+      dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+      <div className="grid grid-cols-2 border-b border-border bg-muted/30 p-1">
         {[
           { key: "signIn", label: "Masuk" },
           { key: "signUp", label: "Daftar" },
@@ -80,9 +81,9 @@ export function LoginForm() {
             type="button"
             onClick={() => setMode(item.key as "signIn" | "signUp")}
             className={cn(
-              "rounded-md px-4 py-3 text-sm font-medium transition-colors",
+              "rounded-xl px-4 py-3 text-sm font-medium transition-colors",
               mode === item.key
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
             aria-pressed={mode === item.key}
@@ -91,18 +92,20 @@ export function LoginForm() {
           </button>
         ))}
       </div>
-      <CardHeader className="space-y-2 pb-4">
-        <CardTitle className="text-xl text-card-foreground">
+
+      <div className="space-y-2 p-5 pb-4">
+        <h2 className="text-xl font-semibold text-card-foreground">
           {mode === "signIn" ? "Masuk ke Catat" : "Buat akun Catat"}
-        </CardTitle>
-        <CardDescription>
+        </h2>
+        <p className="text-sm text-muted-foreground">
           {mode === "signIn"
             ? "Lanjutkan pencatatan pengeluaran dari perangkat mana pun."
             : "Daftarkan akun untuk mulai mencatat pengeluaran dengan lebih rapi."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        </p>
+      </div>
+
+      <div className="px-5 pb-5 space-y-4">
+        <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           {mode === "signIn"
             ? "Masukkan email dan password Anda untuk langsung masuk ke dashboard."
             : "Gunakan email aktif. Password harus minimal 8 karakter."}
@@ -168,7 +171,7 @@ export function LoginForm() {
             {mode === "signIn" ? "Daftar" : "Masuk"}
           </button>
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

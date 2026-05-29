@@ -15,7 +15,9 @@ export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="rounded-3xl border border-border bg-card/90 p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-4
+      shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+      dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
       <div className="mb-3">
         <p className="text-sm font-semibold text-card-foreground">Tema</p>
         <p className="text-xs text-muted-foreground">
@@ -33,7 +35,7 @@ export function ThemeSwitcher() {
               type="button"
               onClick={() => setTheme(value)}
               className={cn(
-                "flex flex-col items-center gap-2 rounded-2xl border px-3 py-3 text-center text-xs font-medium transition-colors",
+                "flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-center text-xs font-medium transition-colors",
                 active
                   ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"

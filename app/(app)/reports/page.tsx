@@ -16,6 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  CartesianGrid,
 } from "recharts";
 
 const COLORS = [
@@ -52,9 +53,23 @@ export default function ReportsPage() {
   const isLoading = summary === undefined;
 
   return (
-    <div className="p-4 max-w-lg mx-auto space-y-4 pb-6">
+    <div className="relative p-4 max-w-lg mx-auto space-y-5 pb-6">
+      {/* Paper texture */}
+      <div
+        className="fixed inset-0 -z-10
+          bg-[#faf9f6] dark:bg-[#0f172a]
+          bg-[radial-gradient(#e2e0d8_1px,transparent_1px)]
+          dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)]
+          [background-size:32px_32px] opacity-60 dark:opacity-40"
+        aria-hidden="true"
+      />
+
       <div className="flex items-center justify-between pt-4">
-        <h1 className="text-xl font-semibold text-foreground">Laporan</h1>
+        <div className="flex items-center gap-2">
+          <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
+            Laporan
+          </span>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setCurrent((d) => subMonths(d, 1))}
@@ -62,7 +77,7 @@ export default function ReportsPage() {
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="min-w-[110px] text-center text-sm text-foreground">{monthName}</span>
+          <span className="min-w-[110px] text-center text-sm text-foreground font-medium">{monthName}</span>
           <button
             onClick={() => setCurrent((d) => addMonths(d, 1))}
             disabled={period >= format(new Date(), "yyyy-MM")}
@@ -74,52 +89,80 @@ export default function ReportsPage() {
       </div>
 
       {/* Total */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <p className="text-sm text-muted-foreground">Total Pengeluaran</p>
+      <div className="relative rounded-2xl border border-border bg-card p-5
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
+
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Total Pengeluaran
+        </p>
         {isLoading ? (
-          <Skeleton className="mt-1 h-9 w-48 bg-muted" />
+          <Skeleton className="mt-2 h-10 w-48 bg-muted" />
         ) : (
-          <p className="mt-1 text-3xl font-bold text-card-foreground">{formatIDR(summary.total)}</p>
+          <p className="mt-2 text-3xl font-semibold text-card-foreground tracking-tight">{formatIDR(summary.total)}</p>
         )}
         {isLoading ? (
-          <Skeleton className="mt-1 h-4 w-24 bg-muted" />
+          <Skeleton className="mt-2 h-4 w-24 bg-muted" />
         ) : (
-          <p className="mt-1 text-sm text-muted-foreground">{summary.count} transaksi</p>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+            <p className="text-xs text-muted-foreground">{summary.count} transaksi</p>
+          </div>
         )}
       </div>
 
       {/* 6-month trend */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">Tren 6 Bulan</p>
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={trend} barSize={28}>
-            <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis hide />
-            <Tooltip
-              cursor={{ fill: "#ffffff08" }}
-              content={({ active, payload }) =>
-                active && payload?.[0] ? (
-                  <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-sm">
-                    {formatIDR(payload[0].value as number)}
-                  </div>
-                ) : null
-              }
-            />
-            <Bar dataKey="total" radius={[6, 6, 0, 0]}>
-              {trend.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={entry.period === period ? "#3b82f6" : "#3f3f46"}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="absolute -top-2 right-8 h-4 w-20 bg-accent/50 border border-primary/20 rounded-sm rotate-[1deg] z-10" />
+
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tren 6 Bulan</p>
+        </div>
+
+        <div className="rotate-[0.5deg]">
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={trend} barSize={28}>
+              <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <XAxis dataKey="label" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip
+                cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                content={({ active, payload }) =>
+                  active && payload?.[0] ? (
+                    <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+                      {formatIDR(payload[0].value as number)}
+                    </div>
+                  ) : null
+                }
+              />
+              <Bar dataKey="total" radius={[6, 6, 0, 0]}>
+                {trend.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.period === period ? "#3b82f6" : "hsl(var(--muted))"}
+                    stroke="hsl(var(--card))"
+                    strokeWidth={2}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Category breakdown */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">Per Kategori</p>
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Per Kategori</p>
+        </div>
+
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 rounded-lg bg-muted" />)}
