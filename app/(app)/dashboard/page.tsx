@@ -166,7 +166,7 @@ export default function DashboardPage() {
                       <Cell
                         key={entry.categoryId}
                         fill={entry.color}
-                        stroke="hsl(var(--card))"
+                        stroke="var(--card)"
                         strokeWidth={3}
                       />
                     ))}
@@ -174,13 +174,13 @@ export default function DashboardPage() {
                   <Tooltip
                     formatter={(value) => [formatIDR(Number(value)), "Total"]}
                     contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
                       borderRadius: 12,
                       boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                       padding: "8px 12px",
                       fontSize: 12,
-                      color: "hsl(var(--card-foreground))",
+                      color: "var(--card-foreground)",
                     }}
                     labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
                     itemStyle={{ fontSize: 12, color: "inherit" }}
@@ -263,7 +263,7 @@ export default function DashboardPage() {
               >
                 <CartesianGrid
                   horizontal={false}
-                  stroke="hsl(var(--border))"
+                  stroke="var(--border)"
                   strokeDasharray="4 4"
                   strokeOpacity={0.5}
                 />
@@ -272,18 +272,18 @@ export default function DashboardPage() {
                   type="category"
                   dataKey="name"
                   width={80}
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                  cursor={{ fill: "rgba(128,128,128,0.08)" }}
                   formatter={(value) => [formatIDR(Number(value)), "Total"]}
                   contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: 10,
                     boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                     padding: "8px 12px",
-                    color: "hsl(var(--card-foreground))",
+                    color: "var(--card-foreground)",
                   }}
                   labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
                   itemStyle={{ fontSize: 12, color: "inherit" }}
@@ -293,7 +293,7 @@ export default function DashboardPage() {
                     <Cell
                       key={entry.categoryId}
                       fill={entry.color}
-                      stroke="hsl(var(--card))"
+                      stroke="var(--card)"
                       strokeWidth={2}
                     />
                   ))}

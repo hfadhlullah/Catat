@@ -126,11 +126,11 @@ export default function ReportsPage() {
         <div className="rotate-[0.5deg]">
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={trend} barSize={28}>
-              <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.5} />
-              <XAxis dataKey="label" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <XAxis dataKey="label" tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip
-                cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                cursor={{ fill: "rgba(128,128,128,0.08)" }}
                 content={({ active, payload }) =>
                   active && payload?.[0] ? (
                     <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
@@ -143,8 +143,8 @@ export default function ReportsPage() {
                 {trend.map((entry, i) => (
                   <Cell
                     key={i}
-                    fill={entry.period === period ? "#3b82f6" : "hsl(var(--muted))"}
-                    stroke="hsl(var(--card))"
+                    fill={entry.period === period ? "#3b82f6" : "var(--muted-foreground)"}
+                    stroke="var(--card)"
                     strokeWidth={2}
                   />
                 ))}
