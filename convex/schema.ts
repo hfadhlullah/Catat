@@ -8,6 +8,7 @@ export default defineSchema({
   userProfiles: defineTable({
     userId: v.id("users"),
     name: v.string(),
+    bio: v.optional(v.string()),
     email: v.string(),
     role: v.union(v.literal("owner"), v.literal("admin")),
     isActive: v.boolean(),

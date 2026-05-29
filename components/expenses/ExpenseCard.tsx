@@ -11,6 +11,13 @@ import Image from "next/image";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface ExpenseCardProps {
   expense: {
@@ -78,15 +85,34 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
           </p>
         </div>
         {expense.receiptUrl && (
-          <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-            <Image
-              src={expense.receiptUrl}
-              alt="receipt"
-              width={56}
-              height={56}
-              className="w-14 h-14 object-cover rounded-lg border border-zinc-700"
-            />
-          </a>
+          <Dialog>
+            <DialogTrigger asChild>
+              <button type="button" className="shrink-0">
+                <Image
+                  src={expense.receiptUrl}
+                  alt={`Nota untuk ${expense.description}`}
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 rounded-lg border border-zinc-700 object-cover"
+                />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[min(92vw,40rem)] border-zinc-800 bg-zinc-950 p-3 text-zinc-50 sm:rounded-2xl">
+              <DialogTitle className="sr-only">Preview nota</DialogTitle>
+              <DialogDescription className="sr-only">
+                Preview gambar nota untuk {expense.description}
+              </DialogDescription>
+              <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+                <Image
+                  src={expense.receiptUrl}
+                  alt={`Nota untuk ${expense.description}`}
+                  width={1200}
+                  height={1200}
+                  className="h-auto max-h-[80vh] w-full object-contain"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
