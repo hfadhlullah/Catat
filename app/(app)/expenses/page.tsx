@@ -57,20 +57,20 @@ export default function ExpensesPage() {
   return (
     <div className="p-4 max-w-lg mx-auto space-y-4">
       <div className="pt-4">
-        <h1 className="text-xl font-semibold text-zinc-50">Pengeluaran</h1>
+        <h1 className="text-xl font-semibold text-foreground">Pengeluaran</h1>
       </div>
 
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 space-y-3">
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">Filter tanggal</p>
-            <p className="mt-1 text-sm text-zinc-300">{getDateFilterLabel()}</p>
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Filter tanggal</p>
+            <p className="mt-1 text-sm text-card-foreground">{getDateFilterLabel()}</p>
           </div>
           {hasDateFilter && (
             <button
               type="button"
               onClick={() => setDateRange(undefined)}
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Reset
@@ -85,15 +85,15 @@ export default function ExpensesPage() {
               className={cn(
                 "flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
                 hasDateFilter
-                  ? "border-blue-500/40 bg-blue-500/10 text-zinc-50"
-                  : "border-zinc-800 bg-zinc-950/40 text-zinc-300 hover:border-zinc-700"
+                  ? "border-primary/40 bg-primary/10 text-foreground"
+                  : "border-border bg-background/70 text-foreground hover:border-primary/30"
               )}
             >
               <span className="truncate">{getDateFilterLabel()}</span>
-              <CalendarIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+              <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto border-zinc-800 bg-zinc-950 p-0 text-zinc-50">
+          <PopoverContent align="start" className="w-auto border-border bg-popover p-0 text-popover-foreground">
             <Calendar
               mode="range"
               min={1}
@@ -104,7 +104,7 @@ export default function ExpensesPage() {
               }}
               locale={idLocale}
               numberOfMonths={1}
-              className="bg-zinc-950"
+              className="bg-popover"
             />
           </PopoverContent>
         </Popover>
@@ -113,13 +113,13 @@ export default function ExpensesPage() {
       {status === "LoadingFirstPage" && (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-2xl bg-zinc-800" />
+            <Skeleton key={i} className="h-20 rounded-2xl bg-muted" />
           ))}
         </div>
       )}
 
       {results.length === 0 && status !== "LoadingFirstPage" && (
-        <div className="text-center py-12 text-zinc-500">
+        <div className="py-12 text-center text-muted-foreground">
           <p>{hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : "Belum ada pengeluaran."}</p>
         </div>
       )}
@@ -133,7 +133,7 @@ export default function ExpensesPage() {
       {status === "CanLoadMore" && (
         <Button
           variant="outline"
-          className="w-full border-zinc-700 text-zinc-300"
+          className="w-full"
           onClick={() => loadMore(20)}
         >
           Muat lebih banyak

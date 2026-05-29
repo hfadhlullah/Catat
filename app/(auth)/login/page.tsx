@@ -1,14 +1,17 @@
 export const dynamic = "force-dynamic";
 
+import { CatatLogo } from "@/components/brand/CatatLogo";
 import { LoginForm } from "@/components/auth/LoginForm";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-zinc-50">Catat</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Pencatatan pengeluaran konstruksi</p>
+        <div className="mb-8 text-center">
+          <div className="flex justify-center">
+            <CatatLogo className="h-12" />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">Pencatatan pengeluaran konstruksi</p>
         </div>
         <LoginForm />
       </div>

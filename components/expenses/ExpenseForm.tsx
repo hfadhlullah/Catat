@@ -228,10 +228,10 @@ export function ExpenseForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-6">
 
       {/* ── AMOUNT ── */}
-      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-3">Jumlah</p>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">Jumlah</p>
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-semibold text-zinc-400">Rp</span>
+          <span className="text-2xl font-semibold text-muted-foreground">Rp</span>
           <input
             ref={amountRef}
             type="text"
@@ -239,23 +239,23 @@ export function ExpenseForm() {
             value={amountDisplay}
             onChange={handleAmountChange}
             placeholder="0"
-            className="flex-1 bg-transparent text-4xl font-bold text-zinc-50 placeholder:text-zinc-700 outline-none min-w-0"
+            className="min-w-0 flex-1 bg-transparent text-4xl font-bold text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         {errors.amount && (
-          <p className="mt-2 text-red-400 text-xs">{errors.amount.message}</p>
+          <p className="mt-2 text-xs text-destructive">{errors.amount.message}</p>
         )}
       </div>
 
       {/* ── CATEGORY ── */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Kategori</p>
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Kategori</p>
           {!showNewCategory && (
             <button
               type="button"
               onClick={() => setShowNewCategory(true)}
-              className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
             >
               <Plus className="w-3 h-3" /> Kategori baru
             </button>
@@ -271,9 +271,9 @@ export function ExpenseForm() {
               placeholder="Nama kategori"
               autoFocus
               disabled={creatingCategory}
-              className="min-w-0 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-blue-600 transition-colors sm:min-w-[12rem] sm:flex-1"
+               className="min-w-0 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary sm:min-w-[12rem] sm:flex-1"
             />
-            <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 min-w-0 sm:min-w-[10rem]">
+             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 sm:min-w-[10rem]">
               <span className="text-lg leading-none" aria-hidden="true">
                 {newCategoryIcon.trim() || "🙂"}
               </span>
@@ -282,7 +282,7 @@ export function ExpenseForm() {
                 onChange={(e) => setNewCategoryIcon(e.target.value)}
                 placeholder="Select Emoji"
                 disabled={creatingCategory}
-                className="w-24 bg-transparent text-sm text-zinc-50 placeholder:text-zinc-600 outline-none"
+                className="w-24 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
             <div className="col-span-2 flex gap-2 sm:col-auto">
@@ -290,7 +290,7 @@ export function ExpenseForm() {
                 type="button"
                 disabled={creatingCategory}
                 onClick={addNewCategory}
-                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50 sm:flex-none"
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 sm:flex-none"
               >
                 {creatingCategory ? "Menambah..." : "Tambah"}
               </button>
@@ -302,7 +302,7 @@ export function ExpenseForm() {
                   setNewCategoryIcon("");
                   setShowNewCategory(false);
                 }}
-                className="h-10 w-10 shrink-0 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
+                className="h-10 w-10 shrink-0 rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
               >
                 <X className="mx-auto w-4 h-4" />
               </button>
@@ -312,19 +312,19 @@ export function ExpenseForm() {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600 pointer-events-none" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={categorySearch}
             onChange={(e) => setCategorySearch(e.target.value)}
             placeholder="Cari kategori..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-8 pr-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-zinc-600 transition-colors"
+            className="w-full rounded-xl border border-border bg-card py-2 pl-8 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
           />
           {categorySearch && (
             <button
               type="button"
               onClick={() => setCategorySearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -344,8 +344,8 @@ export function ExpenseForm() {
                     className={cn(
                       "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-all duration-150 shrink-0",
                       active
-                        ? "border-transparent text-white shadow-lg scale-105"
-                        : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300"
+                        ? "border-transparent text-primary-foreground shadow-lg scale-105"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
                     )}
                     style={active ? { backgroundColor: cat.color ?? "#3b82f6" } : {}}
                   >
@@ -355,36 +355,36 @@ export function ExpenseForm() {
                 );
               })}
             {categories !== undefined && categories.length === 0 && (
-              <p className="text-xs text-zinc-600 py-2">Belum ada kategori. Tambah di atas.</p>
+              <p className="py-2 text-xs text-muted-foreground">Belum ada kategori. Tambah di atas.</p>
             )}
             {categories !== undefined && categories.length > 0 && filteredCategories.length === 0 && (
-              <p className="text-xs text-zinc-600 py-2">Tidak ditemukan</p>
+              <p className="py-2 text-xs text-muted-foreground">Tidak ditemukan</p>
             )}
           </div>
         </div>
 
         {errors.categoryId && (
-          <p className="text-red-400 text-xs px-1">{errors.categoryId.message}</p>
+          <p className="px-1 text-xs text-destructive">{errors.categoryId.message}</p>
         )}
       </div>
 
       {/* ── DATE & DESCRIPTION ── */}
-      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 divide-y divide-zinc-800">
+      <div className="divide-y divide-border rounded-2xl border border-border bg-card shadow-sm">
         {/* Date */}
         <div className="p-4">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">Tanggal</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Tanggal</p>
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-2 text-zinc-50 text-sm font-medium hover:text-zinc-300 transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
               >
-                <CalendarIcon className="w-4 h-4 text-zinc-500" />
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-600 ml-auto" />
+                <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-700" align="start">
+            <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
               <Calendar
                 mode="single"
                 selected={selectedDate}
@@ -400,29 +400,29 @@ export function ExpenseForm() {
 
         {/* Description */}
         <div className="p-4">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">Deskripsi</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Deskripsi</p>
           <input
             {...register("description")}
             placeholder="Contoh: Beli semen 10 sak"
-            className="w-full bg-transparent text-sm text-zinc-50 placeholder:text-zinc-600 outline-none"
+            className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           {errors.description && (
-            <p className="mt-1 text-red-400 text-xs">{errors.description.message}</p>
+            <p className="mt-1 text-xs text-destructive">{errors.description.message}</p>
           )}
         </div>
       </div>
 
       {/* ── VENDOR ── */}
-      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">
-            Vendor <span className="normal-case text-zinc-700">(opsional)</span>
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            Vendor <span className="normal-case text-muted-foreground">(opsional)</span>
           </p>
           {!showNewVendor && (
             <button
               type="button"
               onClick={() => setShowNewVendor(true)}
-              className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
             >
               <Plus className="w-3 h-3" /> Vendor baru
             </button>
@@ -437,7 +437,7 @@ export function ExpenseForm() {
               <button
                 type="button"
                 onClick={() => setValue("vendorId", undefined)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border border-zinc-700 text-zinc-500 hover:border-zinc-500 transition-colors"
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
               >
                 <X className="w-3 h-3" /> Hapus
               </button>
@@ -452,8 +452,8 @@ export function ExpenseForm() {
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                     active
-                      ? "bg-blue-600 border-transparent text-white"
-                      : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500"
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:border-primary/30"
                   )}
                 >
                   <Store className="w-3 h-3" />
@@ -462,7 +462,7 @@ export function ExpenseForm() {
               );
             })}
             {vendors?.length === 0 && (
-              <p className="text-xs text-zinc-600">Belum ada vendor. Tambah di atas.</p>
+              <p className="text-xs text-muted-foreground">Belum ada vendor. Tambah di atas.</p>
             )}
           </div>
         )}
@@ -476,20 +476,20 @@ export function ExpenseForm() {
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewVendor())}
               placeholder="Nama vendor baru"
               autoFocus
-              className="min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 outline-none focus:border-blue-600 transition-colors"
+              className="min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
             <div className="col-span-2 flex gap-2 sm:col-auto">
               <button
                 type="button"
                 onClick={addNewVendor}
-                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors sm:flex-none"
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:flex-none"
               >
                 Tambah
               </button>
               <button
                 type="button"
                 onClick={() => setShowNewVendor(false)}
-                className="h-10 w-10 shrink-0 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="h-10 w-10 shrink-0 rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 <X className="mx-auto w-4 h-4" />
               </button>
@@ -500,8 +500,8 @@ export function ExpenseForm() {
 
       {/* ── PHOTO ── */}
       <div className="space-y-2">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest px-1">
-          Foto Nota <span className="text-red-400 normal-case">*</span>
+        <p className="px-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          Foto Nota <span className="normal-case text-destructive">*</span>
         </p>
         <input
           ref={fileRef}
@@ -512,7 +512,7 @@ export function ExpenseForm() {
           className="hidden"
         />
         {photoPreview ? (
-          <div className="relative rounded-2xl overflow-hidden border border-zinc-700">
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
             <Image
               src={photoPreview}
               alt="preview"
@@ -523,15 +523,15 @@ export function ExpenseForm() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             {scanning && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 backdrop-blur-sm">
-                <Sparkles className="w-6 h-6 text-blue-400 animate-pulse" />
-                <p className="text-sm font-medium text-zinc-100">Membaca nota...</p>
+                <Sparkles className="w-6 h-6 text-primary animate-pulse" />
+                <p className="text-sm font-medium text-white">Membaca nota...</p>
               </div>
             )}
             <button
               type="button"
               disabled={scanning}
               onClick={() => fileRef.current?.click()}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs text-zinc-300 border border-zinc-700 hover:border-zinc-500 transition-colors disabled:opacity-50"
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-foreground backdrop-blur-sm transition-colors hover:bg-accent disabled:opacity-50"
             >
               <RotateCcw className="w-3 h-3" /> Ganti foto
             </button>
@@ -540,28 +540,28 @@ export function ExpenseForm() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-full h-36 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-zinc-700 text-zinc-600 hover:border-blue-600 hover:text-blue-500 transition-all duration-200 active:scale-[0.98]"
+            className="flex h-36 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-all duration-200 hover:border-primary hover:text-primary active:scale-[0.98]"
           >
-            <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
               <ImagePlus className="w-6 h-6" />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium">Ambil / pilih foto nota</p>
-              <p className="text-xs text-zinc-700 mt-0.5">JPG, PNG hingga 10MB</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">JPG, PNG hingga 10MB</p>
             </div>
           </button>
         )}
       </div>
 
       {/* ── NOTES ── */}
-      <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">
-          Catatan <span className="normal-case text-zinc-700">(opsional)</span>
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
         </p>
         <input
           {...register("notes")}
           placeholder="Catatan tambahan..."
-          className="w-full bg-transparent text-sm text-zinc-50 placeholder:text-zinc-600 outline-none"
+          className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>
 
@@ -570,10 +570,10 @@ export function ExpenseForm() {
         type="submit"
         disabled={isBusy}
         className={cn(
-          "w-full flex items-center justify-center h-14 rounded-2xl text-base font-semibold text-white transition-all duration-200",
+          "w-full flex items-center justify-center h-14 rounded-2xl text-base font-semibold transition-all duration-200",
           isBusy
-            ? "bg-zinc-700 cursor-not-allowed"
-            : "bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-900/30"
+            ? "cursor-not-allowed bg-muted text-muted-foreground"
+            : "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-[0.98]"
         )}
       >
         {uploading ? (

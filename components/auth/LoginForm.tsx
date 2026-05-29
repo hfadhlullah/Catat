@@ -71,28 +71,28 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card className="border-border bg-card shadow-lg">
       <CardHeader>
-        <CardTitle className="text-zinc-50">
+        <CardTitle className="text-card-foreground">
           {mode === "signIn" ? "Masuk" : "Daftar"}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="email" className="text-zinc-300">Email</Label>
+            <Label htmlFor="email" className="text-foreground">Email</Label>
             <Input
               id="email"
               name="email"
               type="email"
               required
               autoComplete="email"
-              className="bg-zinc-800 border-zinc-700 text-zinc-50"
+              className="border-border bg-background text-foreground"
               placeholder="admin@contoh.com"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="password" className="text-zinc-300">Password</Label>
+            <Label htmlFor="password" className="text-foreground">Password</Label>
             <Input
               id="password"
               name="password"
@@ -100,24 +100,24 @@ export function LoginForm() {
               required
               minLength={8}
               autoComplete={mode === "signIn" ? "current-password" : "new-password"}
-              className="bg-zinc-800 border-zinc-700 text-zinc-50"
+              className="border-border bg-background text-foreground"
               placeholder="Minimal 8 karakter"
             />
           </div>
           <Button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={isLoading}
           >
             {isLoading ? "Memproses..." : mode === "signIn" ? "Masuk" : "Daftar"}
           </Button>
         </form>
-        <p className="text-center text-sm text-zinc-500 mt-4">
+        <p className="mt-4 text-center text-sm text-muted-foreground">
           {mode === "signIn" ? "Belum punya akun?" : "Sudah punya akun?"}{" "}
           <button
             type="button"
             onClick={() => setMode(mode === "signIn" ? "signUp" : "signIn")}
-            className="text-blue-400 hover:underline"
+            className="text-primary hover:underline"
           >
             {mode === "signIn" ? "Daftar" : "Masuk"}
           </button>

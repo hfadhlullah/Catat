@@ -53,20 +53,20 @@ export default function ReportsPage() {
 
   return (
     <div className="p-4 max-w-lg mx-auto space-y-4 pb-6">
-      <div className="pt-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-50">Laporan</h1>
+      <div className="flex items-center justify-between pt-4">
+        <h1 className="text-xl font-semibold text-foreground">Laporan</h1>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setCurrent((d) => subMonths(d, 1))}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm text-zinc-300 min-w-[110px] text-center">{monthName}</span>
+          <span className="min-w-[110px] text-center text-sm text-foreground">{monthName}</span>
           <button
             onClick={() => setCurrent((d) => addMonths(d, 1))}
             disabled={period >= format(new Date(), "yyyy-MM")}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors disabled:opacity-30"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -74,32 +74,32 @@ export default function ReportsPage() {
       </div>
 
       {/* Total */}
-      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800">
-        <p className="text-zinc-400 text-sm">Total Pengeluaran</p>
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <p className="text-sm text-muted-foreground">Total Pengeluaran</p>
         {isLoading ? (
-          <Skeleton className="h-9 w-48 mt-1 bg-zinc-800" />
+          <Skeleton className="mt-1 h-9 w-48 bg-muted" />
         ) : (
-          <p className="text-3xl font-bold text-zinc-50 mt-1">{formatIDR(summary.total)}</p>
+          <p className="mt-1 text-3xl font-bold text-card-foreground">{formatIDR(summary.total)}</p>
         )}
         {isLoading ? (
-          <Skeleton className="h-4 w-24 mt-1 bg-zinc-800" />
+          <Skeleton className="mt-1 h-4 w-24 bg-muted" />
         ) : (
-          <p className="text-zinc-500 text-sm mt-1">{summary.count} transaksi</p>
+          <p className="mt-1 text-sm text-muted-foreground">{summary.count} transaksi</p>
         )}
       </div>
 
       {/* 6-month trend */}
-      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Tren 6 Bulan</p>
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">Tren 6 Bulan</p>
         <ResponsiveContainer width="100%" height={140}>
           <BarChart data={trend} barSize={28}>
-            <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip
               cursor={{ fill: "#ffffff08" }}
               content={({ active, payload }) =>
                 active && payload?.[0] ? (
-                  <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200">
+                  <div className="rounded-lg border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-sm">
                     {formatIDR(payload[0].value as number)}
                   </div>
                 ) : null
@@ -118,14 +118,14 @@ export default function ReportsPage() {
       </div>
 
       {/* Category breakdown */}
-      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Per Kategori</p>
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="mb-4 text-xs font-medium uppercase tracking-widest text-muted-foreground">Per Kategori</p>
         {isLoading ? (
           <div className="space-y-3">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 rounded-lg bg-zinc-800" />)}
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 rounded-lg bg-muted" />)}
           </div>
         ) : summary.byCategory.length === 0 ? (
-          <p className="text-zinc-600 text-sm text-center py-4">Tidak ada data</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">Tidak ada data</p>
         ) : (
           <div className="space-y-3">
             {[...summary.byCategory]
@@ -136,13 +136,13 @@ export default function ReportsPage() {
                 return (
                   <div key={cat.categoryId}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-zinc-300">{cat.name}</span>
+                      <span className="text-sm text-foreground">{cat.name}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-500">{pct.toFixed(0)}%</span>
-                        <span className="text-sm font-medium text-zinc-200">{formatIDR(cat.total)}</span>
+                        <span className="text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
+                        <span className="text-sm font-medium text-foreground">{formatIDR(cat.total)}</span>
                       </div>
                     </div>
-                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${pct}%`, backgroundColor: color }}

@@ -54,15 +54,15 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
   }
 
   return (
-    <div className={cn("bg-zinc-900 rounded-2xl border border-zinc-800 transition-opacity", deleting && "opacity-40 pointer-events-none")}>
+    <div className={cn("rounded-2xl border border-border bg-card transition-opacity shadow-sm", deleting && "pointer-events-none opacity-40")}>
       <div className="p-4 flex gap-3">
         {expense.category?.icon && (
           <div className="text-2xl leading-none mt-0.5">{expense.category.icon}</div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-zinc-50 font-medium truncate">{expense.description}</p>
-            <p className="text-zinc-50 font-semibold shrink-0">{formatIDR(expense.amount)}</p>
+            <p className="truncate font-medium text-card-foreground">{expense.description}</p>
+            <p className="shrink-0 font-semibold text-card-foreground">{formatIDR(expense.amount)}</p>
           </div>
           <div className="flex gap-2 mt-1 flex-wrap">
             {expense.category && (
@@ -77,10 +77,10 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
               </span>
             )}
             {expense.vendor && (
-              <span className="text-xs text-zinc-400">{expense.vendor.name}</span>
+              <span className="text-xs text-muted-foreground">{expense.vendor.name}</span>
             )}
           </div>
-          <p className="text-zinc-500 text-xs mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             {format(new Date(expense.date), "d MMM yyyy", { locale: idLocale })}
           </p>
         </div>
@@ -93,16 +93,16 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
                   alt={`Nota untuk ${expense.description}`}
                   width={56}
                   height={56}
-                  className="h-14 w-14 rounded-lg border border-zinc-700 object-cover"
+                  className="h-14 w-14 rounded-lg border border-border object-cover"
                 />
               </button>
             </DialogTrigger>
-            <DialogContent className="max-w-[min(92vw,40rem)] border-zinc-800 bg-zinc-950 p-3 text-zinc-50 sm:rounded-2xl">
+            <DialogContent className="max-w-[min(92vw,40rem)] border-border bg-popover p-3 text-popover-foreground sm:rounded-2xl">
               <DialogTitle className="sr-only">Preview nota</DialogTitle>
               <DialogDescription className="sr-only">
                 Preview gambar nota untuk {expense.description}
               </DialogDescription>
-              <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <Image
                   src={expense.receiptUrl}
                   alt={`Nota untuk ${expense.description}`}
@@ -122,8 +122,8 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
           className={cn(
             "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all duration-150",
             confirming
-              ? "bg-red-600/20 text-red-400 border border-red-600/40"
-              : "text-zinc-600 hover:text-red-400 hover:bg-zinc-800"
+              ? "border border-destructive/40 bg-destructive/10 text-destructive"
+              : "text-muted-foreground hover:bg-accent hover:text-destructive"
           )}
         >
           <Trash2 className="w-3.5 h-3.5" />
