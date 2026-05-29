@@ -101,6 +101,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [hasInstallment, setHasInstallment] = useState(false);
 
   const {
     register,
@@ -132,10 +133,13 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     if (mode !== "edit" || !initialExpense) return;
     if (initializedExpenseRef.current === initialExpense._id) return;
 
+    const isInstallment = (initialExpense.installmentCount ?? 1) > 1;
+    setHasInstallment(isInstallment);
+
     reset({
       amount: initialExpense.amount,
-      installmentCount: initialExpense.installmentCount ?? 1,
-      installmentRate: initialExpense.installmentRate ?? 0,
+      installmentCount: isInstallment ? (initialExpense.installmentCount ?? 1) : 1,
+      installmentRate: isInstallment ? (initialExpense.installmentRate ?? 0) : 0,
       description: initialExpense.description,
       date: new Date(initialExpense.date),
       categoryId: initialExpense.categoryId,
@@ -270,8 +274,8 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
       const payload = {
         amount: data.amount,
-        installmentCount: data.installmentCount,
-        installmentRate: data.installmentRate,
+        installmentCount: hasInstallment ? data.installmentCount : 1,
+        installmentRate: hasInstallment ? data.installmentRate : 0,
         description: data.description,
         date: data.date.getTime(),
         categoryId: data.categoryId as Id<"categories">,
@@ -336,46 +340,72 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         )}
       </div>
 
-      <div className={cn("grid gap-3 p-4 sm:grid-cols-2", cardShadow)}>
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Cicilan</p>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            {...register("installmentCount", { valueAsNumber: true })}
-            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">Isi `1` untuk pembayaran langsung.</p>
-          {errors.installmentCount && (
-            <p className="mt-1 text-xs text-destructive">{errors.installmentCount.message}</p>
-          )}
+      <div className={cn("p-4", cardShadow)}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cicilan</p>
+          <button
+            type="button"
+            onClick={() => setHasInstallment((prev) => !prev)}
+            className={cn(
+              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200",
+              hasInstallment ? "bg-primary" : "bg-muted"
+            )}
+            aria-pressed={hasInstallment}
+          >
+            <span
+              className={cn(
+                "inline-block h-4 w-4 rounded-full bg-white transition-transform duration-200",
+                hasInstallment ? "translate-x-6" : "translate-x-1"
+              )}
+            />
+          </button>
         </div>
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Bunga Cicilan (%)</p>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            {...register("installmentRate", { valueAsNumber: true })}
-            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">Gunakan `0` untuk cicilan tanpa bunga tambahan.</p>
-          {errors.installmentRate && (
-            <p className="mt-1 text-xs text-destructive">{errors.installmentRate.message}</p>
-          )}
-        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {hasInstallment ? "Pembayaran dicicil" : "Pembayaran langsung"}
+        </p>
 
-        {amountValue > 0 && installmentCount > 1 && (
-          <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Estimasi total dibayar</span>
-              <span className="font-medium text-foreground">{formatIDR(totalWithInterest)}</span>
+        {hasInstallment && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 animate-wallet-slide-up">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Jumlah Cicilan</p>
+              <input
+                type="number"
+                min={2}
+                step={1}
+                {...register("installmentCount", { valueAsNumber: true })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              />
+              {errors.installmentCount && (
+                <p className="mt-1 text-xs text-destructive">{errors.installmentCount.message}</p>
+              )}
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Per cicilan ({installmentCount}x)</span>
-              <span className="font-medium text-foreground">{formatIDR(perInstallment)}</span>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Bunga Cicilan (%)</p>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                {...register("installmentRate", { valueAsNumber: true })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Gunakan `0` untuk tanpa bunga.</p>
+              {errors.installmentRate && (
+                <p className="mt-1 text-xs text-destructive">{errors.installmentRate.message}</p>
+              )}
             </div>
+
+            {amountValue > 0 && installmentCount > 1 && (
+              <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Estimasi total dibayar</span>
+                  <span className="font-medium text-foreground">{formatIDR(totalWithInterest)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Per cicilan ({installmentCount}x)</span>
+                  <span className="font-medium text-foreground">{formatIDR(perInstallment)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
