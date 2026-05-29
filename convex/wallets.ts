@@ -27,6 +27,7 @@ export const listWallets = query({
 export const createWallet = mutation({
   args: {
     name: v.string(),
+    logo: v.optional(v.string()),
     initialBalance: v.number(),
   },
   handler: async (ctx, args) => {
@@ -47,6 +48,7 @@ export const createWallet = mutation({
     return await ctx.db.insert("wallets", {
       createdBy: profile._id,
       name,
+      logo: args.logo,
       initialBalance: Math.round(args.initialBalance),
       isActive: true,
       createdAt: Date.now(),

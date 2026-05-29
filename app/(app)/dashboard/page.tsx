@@ -84,12 +84,6 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-        <Link
-          href="/wallets"
-          className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Wallet
-        </Link>
       </div>
 
       {walletOverview && walletOverview.wallets.length > 0 && (
@@ -109,7 +103,15 @@ export default function DashboardPage() {
                       : "bg-muted/70 text-muted-foreground hover:bg-muted"
                   )}
                 >
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+                  {wallet.logo ? (
+                    <img
+                      src={`/bank-logo/${wallet.logo}`}
+                      alt={wallet.name}
+                      className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
+                    />
+                  ) : (
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+                  )}
                   <p className="mt-1 text-sm font-semibold">{wallet.name}</p>
                 </button>
               );
@@ -139,7 +141,7 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {selectedWallet && (
-              <div className="rounded-xl border border-border bg-background/60 px-3 py-3">
+              <div className="rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 -rotate-[0.3deg]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-foreground">{selectedWallet.name}</p>

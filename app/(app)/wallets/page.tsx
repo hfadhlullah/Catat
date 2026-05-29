@@ -25,6 +25,28 @@ import { cn } from "@/lib/utils";
 
 const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
 
+const BANK_OPTIONS = [
+  { name: "BCA", logo: "bca.svg" },
+  { name: "BluePay", logo: "bluepay.svg" },
+  { name: "BNI", logo: "bni.svg" },
+  { name: "BRI", logo: "bri.svg" },
+  { name: "Bukopin", logo: "bukopin.svg" },
+  { name: "CIMB", logo: "cimb.svg" },
+  { name: "Dana", logo: "dana.svg" },
+  { name: "Danamon", logo: "danamon.svg" },
+  { name: "Digibank", logo: "digibank.svg" },
+  { name: "GoPay", logo: "gopay.svg" },
+  { name: "HSBC", logo: "hsbc.svg" },
+  { name: "JCB", logo: "jcb.svg" },
+  { name: "Jenius", logo: "jenius.svg" },
+  { name: "Mandiri", logo: "mandiri.svg" },
+  { name: "Ovo", logo: "ovo.svg" },
+  { name: "Panin", logo: "panin.svg" },
+  { name: "PayPal", logo: "paypall.svg" },
+  { name: "PermataBank", logo: "permatabank.svg" },
+  { name: "Visa", logo: "visa.svg" },
+];
+
 function WalletFolderTabs({
   wallets,
   selectedWalletId,
@@ -33,6 +55,7 @@ function WalletFolderTabs({
   wallets: Array<{
     _id: string;
     name: string;
+    logo?: string;
     balance: number;
     monthIncome: number;
     monthExpense: number;
@@ -63,7 +86,15 @@ function WalletFolderTabs({
                   : "bg-muted/70 text-muted-foreground hover:bg-muted"
               )}
             >
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+              {wallet.logo ? (
+                <img
+                  src={`/bank-logo/${wallet.logo}`}
+                  alt={wallet.name}
+                  className={cn("h-5 w-auto object-contain", active ? "brightness-0 dark:invert" : "opacity-60")}
+                />
+              ) : (
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+              )}
               <p className="mt-1 text-sm font-semibold">{wallet.name}</p>
             </button>
           );
@@ -91,7 +122,7 @@ export default function WalletsPage() {
   const createIncome = useMutation(api.incomes.createIncome);
   const upsertBudget = useMutation(api.walletBudgets.upsertWalletBudget);
 
-  const [walletName, setWalletName] = useState("");
+  const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const [incomeDescription, setIncomeDescription] = useState("");
@@ -107,13 +138,19 @@ export default function WalletsPage() {
 
   async function handleCreateWallet(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!selectedBank) {
+      toast.error("Pilih bank dulu");
+      return;
+    }
+
     setSavingWallet(true);
     try {
       await createWallet({
-        name: walletName.trim(),
+        name: selectedBank.name,
+        logo: selectedBank.logo,
         initialBalance: parseAmount(walletBalanceInput),
       });
-      setWalletName("");
+      setSelectedBank(null);
       setWalletBalanceInput("");
       setWalletDialogOpen(false);
       toast.success("Wallet ditambahkan");
@@ -218,7 +255,7 @@ export default function WalletsPage() {
               <Plus className="h-5 w-5" />
             </button>
           </DialogTrigger>
-          <DialogContent className="border-border bg-card text-card-foreground sm:rounded-2xl">
+          <DialogContent className="max-w-md border-border bg-card text-card-foreground overflow-hidden sm:rounded-2xl">
             <DialogHeader>
               <DialogTitle>Tambah Wallet</DialogTitle>
               <DialogDescription>
@@ -227,13 +264,31 @@ export default function WalletsPage() {
             </DialogHeader>
 
             <form onSubmit={handleCreateWallet} className="space-y-3">
-              <input
-                value={walletName}
-                onChange={(e) => setWalletName(e.target.value)}
-                placeholder="Contoh: BCA, Cash, Dana"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                required
-              />
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Bank</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {BANK_OPTIONS.map((bank) => (
+                    <button
+                      key={bank.logo}
+                      type="button"
+                      onClick={() => setSelectedBank(bank)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all duration-150",
+                        selectedBank?.logo === bank.logo
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                      )}
+                    >
+                      <img
+                        src={`/bank-logo/${bank.logo}`}
+                        alt={bank.name}
+                        className="h-6 w-6 object-contain"
+                      />
+                      <span className="text-[10px] font-medium">{bank.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 value={walletBalanceInput}
                 onChange={(e) => setWalletBalanceInput(formatAmountInput(e.target.value))}
@@ -244,7 +299,7 @@ export default function WalletsPage() {
               />
               <button
                 type="submit"
-                disabled={savingWallet}
+                disabled={savingWallet || !selectedBank}
                 className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
                 {savingWallet ? "Menyimpan..." : "Simpan Wallet"}
