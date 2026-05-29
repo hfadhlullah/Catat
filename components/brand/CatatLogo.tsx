@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export function CatatLogo({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 500 150"
+      viewBox="0 0 390 150"
       aria-label="Catat"
       role="img"
       className={cn("h-10 w-auto text-foreground", className)}

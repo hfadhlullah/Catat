@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 function getAuthErrorMessage(error: unknown, mode: "signIn" | "signUp") {
@@ -43,6 +44,7 @@ export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -52,18 +54,14 @@ export function LoginForm() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    console.log("[LoginForm] onSubmit called, mode:", mode);
     setIsLoading(true);
 
     const formData = new FormData(e.currentTarget);
     formData.set("flow", mode);
-    console.log("[LoginForm] email:", formData.get("email"), "flow:", formData.get("flow"));
 
     try {
       await signIn("password", formData);
-      console.log("[LoginForm] signIn done — waiting for isAuthenticated");
     } catch (err: unknown) {
-      console.error("[LoginForm] error:", err);
       toast.error(getAuthErrorMessage(err, mode));
     } finally {
       setIsLoading(false);
@@ -71,15 +69,46 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="border-border bg-card shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-card-foreground">
-          {mode === "signIn" ? "Masuk" : "Daftar"}
+    <Card className="overflow-hidden border-border/80 bg-card shadow-xl shadow-black/5">
+      <div className="grid grid-cols-2 border-b border-border/80 bg-muted/30 p-1">
+        {[
+          { key: "signIn", label: "Masuk" },
+          { key: "signUp", label: "Daftar" },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setMode(item.key as "signIn" | "signUp")}
+            className={cn(
+              "rounded-md px-4 py-3 text-sm font-medium transition-colors",
+              mode === item.key
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            aria-pressed={mode === item.key}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <CardHeader className="space-y-2 pb-4">
+        <CardTitle className="text-xl text-card-foreground">
+          {mode === "signIn" ? "Masuk ke Catat" : "Buat akun Catat"}
         </CardTitle>
+        <CardDescription>
+          {mode === "signIn"
+            ? "Lanjutkan pencatatan pengeluaran dari perangkat mana pun."
+            : "Daftarkan akun untuk mulai mencatat pengeluaran dengan lebih rapi."}
+        </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {mode === "signIn"
+            ? "Masukkan email dan password Anda untuk langsung masuk ke dashboard."
+            : "Gunakan email aktif. Password harus minimal 8 karakter."}
+        </div>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Label htmlFor="email" className="text-foreground">Email</Label>
             <Input
               id="email"
@@ -87,37 +116,54 @@ export function LoginForm() {
               type="email"
               required
               autoComplete="email"
-              className="border-border bg-background text-foreground"
+              inputMode="email"
+              className="h-11 border-border bg-background text-foreground"
               placeholder="admin@contoh.com"
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="password" className="text-foreground">Password</Label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="password" className="text-foreground">Password</Label>
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+              >
+                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPassword ? "Sembunyikan" : "Tampilkan"}
+              </button>
+            </div>
             <Input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               minLength={8}
               autoComplete={mode === "signIn" ? "current-password" : "new-password"}
-              className="border-border bg-background text-foreground"
+              className="h-11 border-border bg-background pr-3 text-foreground"
               placeholder="Minimal 8 karakter"
             />
+            <p className="text-xs text-muted-foreground">
+              {mode === "signIn"
+                ? "Pastikan email dan password sesuai akun yang sudah terdaftar."
+                : "Gunakan kombinasi password yang mudah diingat namun tetap aman."}
+            </p>
           </div>
           <Button
             type="submit"
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={isLoading}
           >
-            {isLoading ? "Memproses..." : mode === "signIn" ? "Masuk" : "Daftar"}
+            {isLoading ? "Memproses..." : mode === "signIn" ? "Masuk ke Dashboard" : "Buat Akun"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           {mode === "signIn" ? "Belum punya akun?" : "Sudah punya akun?"}{" "}
           <button
             type="button"
             onClick={() => setMode(mode === "signIn" ? "signUp" : "signIn")}
-            className="text-primary hover:underline"
+            className="font-medium text-primary hover:underline"
           >
             {mode === "signIn" ? "Daftar" : "Masuk"}
           </button>
