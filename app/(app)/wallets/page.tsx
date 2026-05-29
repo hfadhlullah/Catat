@@ -421,7 +421,10 @@ export default function WalletsPage() {
             <Skeleton className="h-20 bg-muted" />
           </div>
         ) : (
-          <div className="mt-3 space-y-3">
+          <div
+            key={selectedWalletId}
+            className="animate-wallet-slide-up mt-3 space-y-3"
+          >
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-muted/60 px-2 py-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Saldo</p>

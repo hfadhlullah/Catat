@@ -142,7 +142,10 @@ export default function DashboardPage() {
         ) : walletOverview.wallets.length === 0 ? (
           <p className="text-sm text-muted-foreground">Belum ada wallet. Tambahkan wallet untuk mulai catat income dan budget.</p>
         ) : (
-          <div className="space-y-3">
+          <div
+            key={selectedWalletId}
+            className="animate-wallet-slide-up space-y-3"
+          >
             {selectedWallet && (
               <div className="rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 -rotate-[0.3deg]">
                 <div className="flex items-center justify-between gap-3">
