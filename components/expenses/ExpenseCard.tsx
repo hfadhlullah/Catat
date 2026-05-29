@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useMutation } from "convex/react";
+import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { formatIDR } from "@/lib/currency";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import Image from "next/image";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -116,7 +117,14 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
         )}
       </div>
 
-      <div className="px-4 pb-3 flex justify-end">
+      <div className="px-4 pb-3 flex justify-end gap-2">
+        <Link
+          href={`/expenses/${expense._id}/edit`}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-foreground"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
+        </Link>
         <button
           onClick={handleDelete}
           className={cn(

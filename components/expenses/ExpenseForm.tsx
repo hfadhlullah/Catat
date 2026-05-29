@@ -39,21 +39,40 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+interface ExpenseFormProps {
+  mode?: "create" | "edit";
+  expenseId?: Id<"expenses">;
+  initialExpense?: {
+    _id: Id<"expenses">;
+    amount: number;
+    description: string;
+    date: number;
+    categoryId: Id<"categories">;
+    vendorId?: Id<"vendors">;
+    notes?: string;
+    receiptStorageId: Id<"_storage">;
+    receiptUrl?: string | null;
+  };
+}
+
 function formatRupiah(value: string) {
   const num = value.replace(/\D/g, "");
   if (!num) return "";
   return new Intl.NumberFormat("id-ID").format(Number(num));
 }
 
-export function ExpenseForm() {
+export function ExpenseForm({ mode = "create", expenseId, initialExpense }: ExpenseFormProps) {
   const router = useRouter();
   const amountRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const initializedExpenseRef = useRef<string | null>(null);
 
   const categories = useQuery(api.categories.listCategories);
   const vendors = useQuery(api.vendors.listVendors);
   const createExpense = useMutation(api.expenses.createExpense);
+  const updateExpense = useMutation(api.expenses.updateExpense);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
+  const registerUploadedReceipt = useMutation(api.expenses.registerUploadedReceipt);
   const createCategory = useMutation(api.categories.createCategory);
   const createVendor = useMutation(api.vendors.createVendor);
   const extractReceipt = useAction(api.ocr.extractReceipt);
@@ -76,6 +95,7 @@ export function ExpenseForm() {
   const {
     register,
     handleSubmit,
+    reset,
     setValue,
     control,
     formState: { errors, isSubmitting },
@@ -89,8 +109,37 @@ export function ExpenseForm() {
   const selectedVendorId = useWatch({ control, name: "vendorId" });
 
   useEffect(() => {
-    amountRef.current?.focus();
-  }, []);
+    if (mode === "create") {
+      amountRef.current?.focus();
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== "edit" || !initialExpense) return;
+    if (initializedExpenseRef.current === initialExpense._id) return;
+
+    reset({
+      amount: initialExpense.amount,
+      description: initialExpense.description,
+      date: new Date(initialExpense.date),
+      categoryId: initialExpense.categoryId,
+      vendorId: initialExpense.vendorId,
+      notes: initialExpense.notes ?? "",
+    });
+    setAmountDisplay(formatRupiah(String(initialExpense.amount)));
+    setPhoto(null);
+    setPhotoPreview(initialExpense.receiptUrl ?? null);
+    setStorageId(initialExpense.receiptStorageId);
+    initializedExpenseRef.current = initialExpense._id;
+  }, [initialExpense, mode, reset]);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, "");
@@ -106,6 +155,7 @@ export function ExpenseForm() {
       body: file,
     });
     const { storageId } = await res.json();
+    await registerUploadedReceipt({ storageId: storageId as Id<"_storage"> });
     return storageId as string;
   }
 
@@ -142,9 +192,15 @@ export function ExpenseForm() {
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (photoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
     setStorageId(null);
+    if (fileRef.current) fileRef.current.value = "";
 
     setScanning(true);
     try {
@@ -191,16 +247,20 @@ export function ExpenseForm() {
   }
 
   async function onSubmit(data: FormValues) {
-    if (!photo) {
+    if (!storageId && !photo) {
       toast.error("Foto nota diperlukan");
       return;
     }
 
     setUploading(true);
     try {
-      const receiptStorageId = storageId ?? (await uploadPhoto(photo));
+      const receiptStorageId = storageId ?? (photo ? await uploadPhoto(photo) : null);
+      if (!receiptStorageId) {
+        toast.error("Foto nota diperlukan");
+        return;
+      }
 
-      await createExpense({
+      const payload = {
         amount: data.amount,
         description: data.description,
         date: data.date.getTime(),
@@ -208,12 +268,26 @@ export function ExpenseForm() {
         vendorId: data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
         receiptStorageId: receiptStorageId as Id<"_storage">,
-      });
+      };
 
-      toast.success("Pengeluaran disimpan!");
-      router.push("/dashboard");
+      if (mode === "edit") {
+        if (!expenseId) throw new Error("Expense ID is required");
+        await updateExpense({ id: expenseId, ...payload });
+        toast.success("Pengeluaran diperbarui!");
+        router.push("/expenses");
+      } else {
+        await createExpense(payload);
+        toast.success("Pengeluaran disimpan!");
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Gagal menyimpan");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : mode === "edit"
+            ? "Gagal memperbarui"
+            : "Gagal menyimpan"
+      );
     } finally {
       setUploading(false);
     }
@@ -513,9 +587,9 @@ export function ExpenseForm() {
         />
         {photoPreview ? (
           <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
-            <Image
-              src={photoPreview}
-              alt="preview"
+             <Image
+               src={photoPreview}
+               alt={mode === "edit" ? "Preview nota pengeluaran" : "Preview nota baru"}
               width={800}
               height={256}
               className="w-full max-h-64 object-cover"
@@ -533,9 +607,9 @@ export function ExpenseForm() {
               onClick={() => fileRef.current?.click()}
               className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-foreground backdrop-blur-sm transition-colors hover:bg-accent disabled:opacity-50"
             >
-              <RotateCcw className="w-3 h-3" /> Ganti foto
-            </button>
-          </div>
+               <RotateCcw className="w-3 h-3" /> Ganti foto
+             </button>
+           </div>
         ) : (
           <button
             type="button"
@@ -582,12 +656,12 @@ export function ExpenseForm() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            Mengupload foto...
+            {mode === "edit" ? "Mengupload perubahan..." : "Mengupload foto..."}
           </span>
         ) : isSubmitting ? (
-          "Menyimpan..."
+          mode === "edit" ? "Memperbarui..." : "Menyimpan..."
         ) : (
-          "Simpan Pengeluaran"
+          mode === "edit" ? "Simpan Perubahan" : "Simpan Pengeluaran"
         )}
       </button>
     </form>

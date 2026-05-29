@@ -54,6 +54,15 @@ export default defineSchema({
     .index("by_vendor", ["vendorId"])
     .index("by_submitted_by", ["submittedBy"]),
 
+  uploadedReceipts: defineTable({
+    storageId: v.id("_storage"),
+    ownerProfileId: v.id("userProfiles"),
+    attachedExpenseId: v.optional(v.id("expenses")),
+    createdAt: v.number(),
+  })
+    .index("by_storage", ["storageId"])
+    .index("by_owner", ["ownerProfileId"]),
+
   budgets: defineTable({
     categoryId: v.id("categories"),
     amount: v.number(),
