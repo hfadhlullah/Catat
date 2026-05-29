@@ -41,11 +41,15 @@ async function validateExpensePayload(
 async function validateReceiptOwnership(
   ctx: MutationCtx,
   profileId: Id<"userProfiles">,
-  storageId: Id<"_storage">,
+  storageId: Id<"_storage"> | undefined,
   options?: {
     allowMissingForExistingExpenseId?: Id<"expenses">;
   }
 ) {
+  if (!storageId) {
+    return null;
+  }
+
   const receipt = await ctx.db
     .query("uploadedReceipts")
     .withIndex("by_storage", (q) => q.eq("storageId", storageId))
@@ -85,7 +89,7 @@ export const createExpense = mutation({
     categoryId: v.id("categories"),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
-    receiptStorageId: v.id("_storage"),
+    receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
@@ -150,7 +154,9 @@ export const getExpenseById = query({
 
     const category = await ctx.db.get(expense.categoryId);
     const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
-    const receiptUrl = await ctx.storage.getUrl(expense.receiptStorageId);
+    const receiptUrl = expense.receiptStorageId
+      ? await ctx.storage.getUrl(expense.receiptStorageId)
+      : null;
 
     return { ...expense, category, vendor, receiptUrl };
   },
@@ -165,7 +171,7 @@ export const updateExpense = mutation({
     categoryId: v.id("categories"),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
-    receiptStorageId: v.id("_storage"),
+    receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
@@ -196,7 +202,7 @@ export const updateExpense = mutation({
       await ctx.db.patch(receipt._id, { attachedExpenseId: args.id });
     }
 
-    if (previousReceiptStorageId !== args.receiptStorageId) {
+    if (previousReceiptStorageId && previousReceiptStorageId !== args.receiptStorageId) {
       await ctx.storage.delete(previousReceiptStorageId);
 
       const previousReceipt = await ctx.db
@@ -248,7 +254,9 @@ export const listExpenses = query({
       result.page.map(async (expense) => {
         const category = await ctx.db.get(expense.categoryId);
         const vendor = expense.vendorId ? await ctx.db.get(expense.vendorId) : null;
-        const receiptUrl = await ctx.storage.getUrl(expense.receiptStorageId);
+        const receiptUrl = expense.receiptStorageId
+          ? await ctx.storage.getUrl(expense.receiptStorageId)
+          : null;
         return { ...expense, category, vendor, receiptUrl };
       })
     );

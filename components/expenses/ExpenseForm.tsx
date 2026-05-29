@@ -50,7 +50,7 @@ interface ExpenseFormProps {
     categoryId: Id<"categories">;
     vendorId?: Id<"vendors">;
     notes?: string;
-    receiptStorageId: Id<"_storage">;
+    receiptStorageId?: Id<"_storage">;
     receiptUrl?: string | null;
   };
 }
@@ -131,7 +131,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     setAmountDisplay(formatRupiah(String(initialExpense.amount)));
     setPhoto(null);
     setPhotoPreview(initialExpense.receiptUrl ?? null);
-    setStorageId(initialExpense.receiptStorageId);
+    setStorageId(initialExpense.receiptStorageId ?? null);
     initializedExpenseRef.current = initialExpense._id;
   }, [initialExpense, mode, reset]);
 
@@ -249,18 +249,9 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   }
 
   async function onSubmit(data: FormValues) {
-    if (!storageId && !photo) {
-      toast.error("Foto nota diperlukan");
-      return;
-    }
-
     setUploading(true);
     try {
       const receiptStorageId = storageId ?? (photo ? await uploadPhoto(photo) : null);
-      if (!receiptStorageId) {
-        toast.error("Foto nota diperlukan");
-        return;
-      }
 
       const payload = {
         amount: data.amount,
@@ -269,7 +260,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         categoryId: data.categoryId as Id<"categories">,
         vendorId: data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
-        receiptStorageId: receiptStorageId as Id<"_storage">,
+        receiptStorageId: receiptStorageId ? (receiptStorageId as Id<"_storage">) : undefined,
       };
 
       if (mode === "edit") {
@@ -624,7 +615,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
               <ImagePlus className="w-6 h-6" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium">Ambil / pilih foto nota</p>
+              <p className="text-sm font-medium">Ambil / pilih foto nota (opsional)</p>
               <p className="mt-0.5 text-xs text-muted-foreground">JPG, PNG hingga 10MB</p>
             </div>
           </button>

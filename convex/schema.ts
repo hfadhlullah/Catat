@@ -44,7 +44,7 @@ export default defineSchema({
     categoryId: v.id("categories"),
     vendorId: v.optional(v.id("vendors")),
     submittedBy: v.id("userProfiles"),
-    receiptStorageId: v.id("_storage"),
+    receiptStorageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
