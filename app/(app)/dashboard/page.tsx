@@ -6,6 +6,7 @@ import { formatIDR } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import Image from "next/image";
 import {
   BarChart,
   Bar,
@@ -46,9 +47,19 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 max-w-lg mx-auto space-y-4">
-      <div className="pt-4">
-        <h1 className="text-xl font-semibold text-zinc-50">Dashboard</h1>
-        <p className="text-zinc-400 text-sm">{monthName}</p>
+      <div className="flex items-start justify-between gap-4 pt-4">
+        <div>
+          <Image
+            src="/catat-logo.svg"
+            alt="Catat"
+            width={132}
+            height={40}
+            priority
+            className="h-10 w-auto"
+          />
+          <p className="mt-3 text-xl font-semibold text-zinc-50">Dashboard</p>
+          <p className="text-sm text-zinc-400">{monthName}</p>
+        </div>
       </div>
 
       {/* Total card */}

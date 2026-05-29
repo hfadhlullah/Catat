@@ -62,7 +62,11 @@ export const createExpense = mutation({
 });
 
 export const listExpenses = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: {
+    paginationOpts: paginationOptsValidator,
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Unauthenticated");
@@ -73,11 +77,29 @@ export const listExpenses = query({
       .unique();
     if (!profile) throw new ConvexError("Profile not found");
 
-    const result = await ctx.db
+    let expensesQuery = ctx.db
       .query("expenses")
       .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
-      .order("desc")
-      .paginate(args.paginationOpts);
+      .order("desc");
+
+    if (args.startDate !== undefined || args.endDate !== undefined) {
+      expensesQuery = expensesQuery.filter((q) => {
+        if (args.startDate !== undefined && args.endDate !== undefined) {
+          return q.and(
+            q.gte(q.field("date"), args.startDate),
+            q.lte(q.field("date"), args.endDate)
+          );
+        }
+
+        if (args.startDate !== undefined) {
+          return q.gte(q.field("date"), args.startDate);
+        }
+
+        return q.lte(q.field("date"), args.endDate!);
+      });
+    }
+
+    const result = await expensesQuery.paginate(args.paginationOpts);
 
     const page = await Promise.all(
       result.page.map(async (expense) => {
