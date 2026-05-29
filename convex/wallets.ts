@@ -29,7 +29,7 @@ export const createWallet = mutation({
     name: v.string(),
     label: v.optional(v.string()),
     logo: v.optional(v.string()),
-    initialBalance: v.number(),
+    initialBalance: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
@@ -51,10 +51,23 @@ export const createWallet = mutation({
       name,
       label: args.label?.trim(),
       logo: args.logo,
-      initialBalance: Math.round(args.initialBalance),
+      initialBalance: Math.round(args.initialBalance ?? 0),
       isActive: true,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const deleteWallet = mutation({
+  args: { id: v.id("wallets") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const wallet = await ctx.db.get(args.id);
+    if (!wallet || wallet.createdBy !== profile._id || !wallet.isActive) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+
+    await ctx.db.patch(args.id, { isActive: false });
   },
 });
 
@@ -125,6 +138,7 @@ export const getWalletOverview = query({
           monthIncome,
           monthExpense,
           budgetAmount,
+          budgetId: budget?._id ?? null,
           budgetRemaining: budgetAmount > 0 ? budgetAmount - monthExpense : 0,
           budgetUsedPct: budgetAmount > 0 ? Math.min((monthExpense / budgetAmount) * 100, 100) : 0,
         };

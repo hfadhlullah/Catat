@@ -42,6 +42,19 @@ export const upsertWalletBudget = mutation({
   },
 });
 
+export const deleteWalletBudget = mutation({
+  args: { id: v.id("walletBudgets") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const budget = await ctx.db.get(args.id);
+    if (!budget || budget.createdBy !== profile._id) {
+      throw new ConvexError("Budget tidak valid");
+    }
+
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const listWalletBudgets = query({
   args: { period: v.string() },
   handler: async (ctx, args) => {

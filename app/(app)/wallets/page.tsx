@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { CalendarIcon, ChevronDown, Pencil, Plus } from "lucide-react";
+import { CalendarIcon, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -125,8 +125,10 @@ export default function WalletsPage() {
   const incomes = useQuery(api.incomes.listRecentIncome);
   const createWallet = useMutation(api.wallets.createWallet);
   const updateWallet = useMutation(api.wallets.updateWallet);
+  const deleteWallet = useMutation(api.wallets.deleteWallet);
   const createIncome = useMutation(api.incomes.createIncome);
   const upsertBudget = useMutation(api.walletBudgets.upsertWalletBudget);
+  const deleteBudget = useMutation(api.walletBudgets.deleteWalletBudget);
 
   const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
   const [walletLabel, setWalletLabel] = useState("");
@@ -146,6 +148,10 @@ export default function WalletsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingIncome, setSavingIncome] = useState(false);
   const [savingBudget, setSavingBudget] = useState(false);
+  const [deletingWallet, setDeletingWallet] = useState(false);
+  const [deletingBudget, setDeletingBudget] = useState(false);
+  const [confirmDeleteWalletOpen, setConfirmDeleteWalletOpen] = useState(false);
+  const [confirmDeleteBudgetOpen, setConfirmDeleteBudgetOpen] = useState(false);
 
   async function handleEditWallet(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -252,6 +258,36 @@ export default function WalletsPage() {
     }
   }
 
+  async function handleDeleteWallet() {
+    if (!selectedWallet) return;
+    setDeletingWallet(true);
+    try {
+      await deleteWallet({ id: selectedWallet._id as Id<"wallets"> });
+      setConfirmDeleteWalletOpen(false);
+      setSelectedWalletId("");
+      toast.success("Wallet dihapus");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menghapus wallet");
+    } finally {
+      setDeletingWallet(false);
+    }
+  }
+
+  async function handleDeleteBudget() {
+    if (!selectedWallet?.budgetId) return;
+    setDeletingBudget(true);
+    try {
+      await deleteBudget({ id: selectedWallet.budgetId as Id<"walletBudgets"> });
+      setBudgetAmountInput("");
+      setBudgetAmountInputWalletId("");
+      toast.success("Budget dihapus");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menghapus budget");
+    } finally {
+      setDeletingBudget(false);
+    }
+  }
+
   const selectedWallet = overview?.wallets.find((wallet) => wallet._id === selectedWalletId) ?? overview?.wallets[0];
   const budgetAmountInputValue =
     budgetAmountInputWalletId === selectedWallet?._id
@@ -334,10 +370,9 @@ export default function WalletsPage() {
               <input
                 value={walletBalanceInput}
                 onChange={(e) => setWalletBalanceInput(formatAmountInput(e.target.value))}
-                placeholder="Saldo awal"
+                placeholder="Saldo awal (opsional)"
                 inputMode="numeric"
                 className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                required
               />
               <button
                 type="submit"
@@ -403,6 +438,62 @@ export default function WalletsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={confirmDeleteWalletOpen} onOpenChange={setConfirmDeleteWalletOpen}>
+          <DialogContent className="max-w-sm border-border bg-card text-card-foreground sm:rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Hapus Wallet</DialogTitle>
+              <DialogDescription>
+                Yakin ingin menghapus wallet <span className="font-medium text-foreground">{selectedWallet?.label || selectedWallet?.name}</span>? Wallet yang dihapus tidak dapat dikembalikan.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteWalletOpen(false)}
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteWallet}
+                disabled={deletingWallet}
+                className="flex-1 rounded-xl bg-destructive px-4 py-3 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {deletingWallet ? "Menghapus..." : "Hapus"}
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmDeleteBudgetOpen} onOpenChange={setConfirmDeleteBudgetOpen}>
+          <DialogContent className="max-w-sm border-border bg-card text-card-foreground sm:rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Hapus Budget</DialogTitle>
+              <DialogDescription>
+                Yakin ingin menghapus budget <span className="font-medium text-foreground">{formatIDR(selectedWallet?.budgetAmount ?? 0)}</span> untuk wallet ini?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteBudgetOpen(false)}
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteBudget}
+                disabled={deletingBudget}
+                className="flex-1 rounded-xl bg-destructive px-4 py-3 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {deletingBudget ? "Menghapus..." : "Hapus"}
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {overview && overview.wallets.length > 0 && (
@@ -460,6 +551,14 @@ export default function WalletsPage() {
                         >
                           <Pencil className="h-3 w-3" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteWalletOpen(true)}
+                          className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="Hapus wallet"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Income {formatIDR(selectedWallet.monthIncome)} • Expense {formatIDR(selectedWallet.monthExpense)}
@@ -471,7 +570,18 @@ export default function WalletsPage() {
                     <div className="mt-3">
                       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                         <span>Budget {formatIDR(selectedWallet.budgetAmount)}</span>
-                        <span>Sisa {formatIDR(selectedWallet.budgetRemaining)}</span>
+                        <div className="flex items-center gap-2">
+                          <span>Sisa {formatIDR(selectedWallet.budgetRemaining)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteBudgetOpen(true)}
+                            disabled={deletingBudget}
+                            className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                            aria-label="Hapus budget"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                         <div className="h-full rounded-full bg-primary" style={{ width: `${selectedWallet.budgetUsedPct}%` }} />
