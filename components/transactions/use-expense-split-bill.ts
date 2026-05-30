@@ -5,7 +5,7 @@ import {
   type DisplaySplitParticipant,
   type SplitMode,
   type SplitParticipant,
-} from "./expense-form-helpers";
+} from "./transaction-helpers";
 
 type WalletMember = {
   userId: string;

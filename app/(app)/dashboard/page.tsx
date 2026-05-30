@@ -590,7 +590,7 @@ export default function DashboardPage() {
             {recentTransactions.map((tx, i) => (
               <Link
                 key={tx._id}
-                href={`/expenses/${tx._id}/edit`}
+                href={`/transactions/${tx._id}/edit`}
                 className="flex items-center gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5 transition-colors hover:bg-accent/40"
                 style={{ transform: `rotate(${i % 2 === 0 ? -0.3 : 0.3}deg)` }}
               >
@@ -637,7 +637,7 @@ export default function DashboardPage() {
         )}
 
         <Link
-          href="/expenses"
+          href="/transactions"
           className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
         >
           Lihat Semua Transaksi

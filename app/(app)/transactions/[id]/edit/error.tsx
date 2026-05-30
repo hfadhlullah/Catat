@@ -7,7 +7,7 @@ export default function EditExpenseError() {
   const router = useRouter();
 
   useEffect(() => {
-    const t = setTimeout(() => router.replace("/expenses"), 800);
+    const t = setTimeout(() => router.replace("/transactions"), 800);
     return () => clearTimeout(t);
   }, [router]);
 
@@ -21,7 +21,7 @@ export default function EditExpenseError() {
           </p>
           <button
             type="button"
-            onClick={() => router.push("/expenses")}
+            onClick={() => router.push("/transactions")}
             className="mt-4 inline-flex rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Kembali ke transaksi

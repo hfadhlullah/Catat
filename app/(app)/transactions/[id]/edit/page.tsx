@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { ExpenseForm } from "@/components/expenses/ExpenseForm";
+import { TransactionForm } from "@/components/transactions/TransactionForm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -45,7 +45,7 @@ export default function EditExpensePage({
     try {
       await deleteTransaction({ id: id as Id<"transactions"> });
       toast.success("Transaksi dihapus");
-      router.push("/expenses");
+      router.push("/transactions");
     } catch {
       toast.error("Gagal menghapus");
       setDeleting(false);
@@ -86,7 +86,7 @@ export default function EditExpensePage({
   }
 
   if (transaction === null) {
-    return <RedirectTo path="/expenses" />;
+    return <RedirectTo path="/transactions" />;
   }
 
   if (!transaction.isOwner) {
@@ -180,7 +180,7 @@ export default function EditExpensePage({
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
-        <ExpenseForm
+        <TransactionForm
           mode="edit"
           expenseId={transaction._id}
           initialExpense={transaction}

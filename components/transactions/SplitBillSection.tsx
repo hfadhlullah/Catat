@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
-import type { DisplaySplitParticipant, SplitMode, SplitParticipant } from "./expense-form-helpers";
+import type { DisplaySplitParticipant, SplitMode, SplitParticipant } from "./transaction-helpers";
 
 type WalletMember = {
   userId: string;

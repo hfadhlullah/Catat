@@ -7,7 +7,6 @@ import { z } from "zod";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -15,32 +14,28 @@ import { id as idLocale } from "date-fns/locale";
 import {
   CalendarIcon,
   ChevronDown,
-  Paperclip,
-  FileText,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  X,
 } from "lucide-react";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CategoryAddSheet } from "./CategoryAddSheet";
+import { DescriptionPhotoSection } from "./DescriptionPhotoSection";
+import { RecurringTransactionSection } from "./RecurringTransactionSection";
 import { SplitBillSection } from "./SplitBillSection";
 import { TransactionCategorySheet } from "./TransactionCategorySheet";
 import { VendorSection } from "./VendorSection";
 import {
+  buildTransactionPayload,
   expenseCardShadow,
   formatRupiah,
   isRecurringTransactionType,
-  repeatPeriodLabels,
   transactionTypeOptions,
-  type RepeatPeriod,
   type TransactionType,
-} from "./expense-form-helpers";
+  validateSplitBill,
+} from "./transaction-helpers";
 import { useExpenseReceipt } from "./use-expense-receipt";
 import { useExpenseSplitBill } from "./use-expense-split-bill";
-import { formatIDR } from "@/lib/currency";
+import { useRecurringTransaction } from "./use-recurring-transaction";
 import { cn } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
 
@@ -59,7 +54,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-interface ExpenseFormProps {
+interface TransactionFormProps {
   mode?: "create" | "edit";
   expenseId?: Id<"transactions">;
   initialExpense?: {
@@ -91,7 +86,7 @@ interface ExpenseFormProps {
   };
 }
 
-export function ExpenseForm({ mode = "create", expenseId, initialExpense }: ExpenseFormProps) {
+export function TransactionForm({ mode = "create", expenseId, initialExpense }: TransactionFormProps) {
   const router = useRouter();
   const amountRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -119,11 +114,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [sheetPrimaryId, setSheetPrimaryId] = useState<string | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
-  const [repeatEvery, setRepeatEvery] = useState(1);
-  const [repeatPeriod, setRepeatPeriod] = useState<RepeatPeriod>("month");
-  const [repeatUntil, setRepeatUntil] = useState<Date | null>(null);
-  const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
-  const [untilPickerOpen, setUntilPickerOpen] = useState(false);
   const splitBill = useExpenseSplitBill();
   const receipt = useExpenseReceipt({
     onAmountExtracted: (amount) => {
@@ -181,6 +171,13 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const installmentCount = useWatch({ control, name: "installmentCount" }) ?? 1;
   const installmentRate = useWatch({ control, name: "installmentRate" }) ?? 0;
   const amountValue = useWatch({ control, name: "amount" }) ?? 0;
+  const descriptionValue = useWatch({ control, name: "description" }) ?? "";
+
+  const recurring = useRecurringTransaction({
+    transactionType: transactionType as TransactionType,
+    selectedDate,
+    setValue,
+  });
 
   useEffect(() => {
     if (mode === "create") {
@@ -206,16 +203,9 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         Boolean(initialExpense.notes) ||
         isInstallment
       );
-      // Derive repeat settings from saved installmentCount for old data
-      if (isInstallment) {
-        setRepeatEvery(1);
-        setRepeatPeriod("month");
-        setRepeatUntil(null);
-      } else {
-        setRepeatEvery(1);
-        setRepeatPeriod("month");
-        setRepeatUntil(null);
-      }
+      recurring.setRepeatEvery(1);
+      recurring.setRepeatPeriod("month");
+      recurring.setRepeatUntil(null);
 
       reset({
         amount: initialExpense.amount,
@@ -235,7 +225,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       initializedExpenseRef.current = initialExpense._id;
     }
     initializeFromExpense();
-  }, [initialExpense, mode, receipt, reset, splitBill]);
+  }, [initialExpense, mode, receipt, reset, splitBill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, "");
@@ -303,60 +293,42 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       const receiptStorageId = await receipt.ensureReceiptStorageId();
 
       const splitParticipantCount = splitBill.splitParticipants.length;
-      const equalPreviewBase = splitParticipantCount > 0 ? Math.floor(data.amount / splitParticipantCount) : 0;
-      const equalPreviewRemainder = splitParticipantCount > 0 ? data.amount - equalPreviewBase * splitParticipantCount : 0;
-      const customSplitRemaining = data.amount - splitBill.splitParticipants.reduce((sum, participant) => sum + participant.amount, 0);
+      const submitCustomRemaining = data.amount - splitBill.splitParticipants.reduce((sum, participant) => sum + participant.amount, 0);
 
-      if (splitBill.splitBillEnabled) {
-        if (direction !== "expense") {
-          throw new Error("Split bill hanya untuk pengeluaran");
-        }
-        if (splitParticipantCount < 2) {
-          throw new Error("Split bill minimal 2 peserta");
-        }
-        if (splitBill.splitMode === "equal" && data.amount < splitParticipantCount) {
-          throw new Error("Jumlah transaksi terlalu kecil untuk split rata");
-        }
-        if (splitBill.splitMode === "custom" && customSplitRemaining !== 0) {
-          throw new Error("Total split bill harus sama dengan jumlah transaksi");
-        }
-      }
-
-      const payload = {
+      validateSplitBill({
         direction,
-        transactionType: data.transactionType as "default" | "upcoming" | "subscription" | "repetitive" | "lent" | "borrowed",
+        enabled: splitBill.splitBillEnabled,
+        mode: splitBill.splitMode,
+        participantCount: splitParticipantCount,
+        customRemaining: submitCustomRemaining,
         amount: data.amount,
-        installmentCount: isRecurringTransactionType(data.transactionType as TransactionType) ? data.installmentCount : 1,
-        installmentRate: isRecurringTransactionType(data.transactionType as TransactionType) ? data.installmentRate : 0,
+      });
+
+      const payload = buildTransactionPayload({
+        direction,
+        formTransactionType: data.transactionType,
+        amount: data.amount,
+        installmentCount: data.installmentCount,
+        installmentRate: data.installmentRate,
         description: data.description,
-        date: data.date.getTime(),
-        categoryId: data.categoryId ? (data.categoryId as Id<"categories">) : undefined,
-        walletId: data.walletId as Id<"wallets">,
-        vendorId: direction === "expense" && data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
-        notes: data.notes || undefined,
-        receiptStorageId: receiptStorageId ? (receiptStorageId as Id<"_storage">) : undefined,
-        splitBill: direction === "expense" && splitBill.splitBillEnabled ? {
-          enabled: true,
-          mode: splitBill.splitMode,
-          participants: displaySplitParticipants.map((participant, index) => ({
-            userId: participant.userId ? (participant.userId as Id<"userProfiles">) : undefined,
-            name: participant.name,
-            amount: splitBill.splitMode === "equal"
-              ? equalPreviewBase + (index < equalPreviewRemainder ? 1 : 0)
-              : participant.amount,
-            isPaid: participant.isPaid || undefined,
-            paidAt: participant.isPaid ? participant.paidAt ?? Date.now() : undefined,
-          })),
-        } : undefined,
-      };
+        date: data.date,
+        categoryId: data.categoryId,
+        walletId: data.walletId,
+        vendorId: data.vendorId,
+        notes: data.notes,
+        receiptStorageId,
+        splitBillEnabled: splitBill.splitBillEnabled,
+        splitMode: splitBill.splitMode,
+        displaySplitParticipants,
+      });
 
       if (mode === "edit") {
         if (!expenseId) throw new Error("Expense ID is required");
-        await updateExpense({ id: expenseId, ...payload });
+        await updateExpense({ id: expenseId, ...payload } as Parameters<typeof updateExpense>[0]);
         toast.success("Transaksi diperbarui!");
-        router.push("/expenses");
+        router.push("/transactions");
       } else {
-        await createExpense(payload);
+        await createExpense({ ...payload } as Parameters<typeof createExpense>[0]);
         toast.success(direction === "expense" ? "Pengeluaran disimpan!" : "Pemasukan disimpan!");
         router.push("/dashboard");
       }
@@ -375,33 +347,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
   const isBusy = isSubmitting || uploading || receipt.scanning;
 
-  // Sync installmentCount when repeat config changes
-  useEffect(() => {
-    if (!isRecurringTransactionType(transactionType)) return;
-    if (!repeatUntil) {
-      setValue("installmentCount", repeatEvery, { shouldValidate: true });
-      return;
-    }
-    const start = selectedDate.getTime();
-    const end = repeatUntil.getTime();
-    const diffMs = end - start;
-    if (diffMs <= 0) {
-      setValue("installmentCount", repeatEvery, { shouldValidate: true });
-      return;
-    }
-    let periodMs = 30.44 * 86400000;
-    switch (repeatPeriod) {
-      case "day": periodMs = 86400000; break;
-      case "week": periodMs = 7 * 86400000; break;
-      case "biweekly": periodMs = 14 * 86400000; break;
-      case "month": periodMs = 30.44 * 86400000; break;
-      case "quarterly": periodMs = 91.31 * 86400000; break;
-      case "year": periodMs = 365.25 * 86400000; break;
-    }
-    const occurrences = Math.max(1, Math.floor(diffMs / (repeatEvery * periodMs)) + 1);
-    setValue("installmentCount", occurrences, { shouldValidate: true });
-  }, [repeatEvery, repeatPeriod, repeatUntil, transactionType, selectedDate, setValue]);
-
   const directionFiltered = (categories ?? []).filter((cat) =>
     (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense")
   );
@@ -410,8 +355,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const filteredCategories = directionFiltered.filter((cat) =>
     cat.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
-  const totalWithInterest = Math.round(amountValue * (1 + installmentRate / 100));
-  const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : 0;
   const selectedCategory = categories?.find((cat) => cat._id === selectedCategoryId);
   const selectedParentCategory = selectedCategory?.parentId
     ? categories?.find((cat) => cat._id === selectedCategory.parentId)
@@ -484,15 +427,14 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
           {/* Amount + category name */}
           <div className="flex-1 min-w-0 text-right">
-            <div className="flex items-baseline justify-end gap-1 min-w-0">
-              <span className="text-lg font-semibold text-muted-foreground">Rp</span>
+            <div className="flex items-baseline justify-end min-w-0">
               <input
                 ref={amountRef}
                 type="text"
                 inputMode="numeric"
-                value={amountDisplay}
+                value={amountDisplay ? `Rp${amountDisplay}` : ""}
                 onChange={handleAmountChange}
-                placeholder="0"
+                placeholder="Rp0"
                 className="min-w-0 w-full max-w-full bg-transparent text-3xl font-bold text-foreground outline-none placeholder:text-muted-foreground text-right tracking-tight"
               />
             </div>
@@ -596,87 +538,22 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
         {/* Cicilan (between transaction type and wallet) */}
         {isRecurringTransactionType(transactionType) && (
-          <div className="space-y-3 rounded-xl border border-border bg-background/60 p-4">
-            {/* Repeat every */}
-            <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
-              <span>Repeat every</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={repeatEvery}
-                onChange={(e) => setRepeatEvery(Math.max(1, Number(e.target.value)))}
-                className="w-12 bg-transparent text-center text-lg font-bold text-foreground outline-none border-b border-border focus:border-primary"
-              />
-              <button
-                type="button"
-                onClick={() => setPeriodSheetOpen(true)}
-                className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-              >
-                {repeatPeriodLabels[repeatPeriod]}
-              </button>
-            </div>
-
-            {/* Until */}
-            <div className="flex items-center justify-center gap-2 text-sm">
-              <span className="font-medium text-foreground">until</span>
-              {repeatUntil ? (
-                <span className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setUntilPickerOpen(true)}
-                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-                  >
-                    {format(repeatUntil, "d MMM yyyy", { locale: idLocale })}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRepeatUntil(null)}
-                    className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  <span className="text-xs text-muted-foreground">
-                    (×{installmentCount})
-                  </span>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setUntilPickerOpen(true)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  Forever
-                </button>
-              )}
-            </div>
-
-            {/* Bunga */}
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <span>Bunga</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                {...register("installmentRate", { valueAsNumber: true })}
-                className="w-14 bg-transparent text-center text-base font-semibold text-foreground outline-none border-b border-border focus:border-primary"
-              />
-              <span>%</span>
-            </div>
-
-            {amountValue > 0 && installmentCount > 1 && (
-              <div className="rounded-xl border border-dashed border-border bg-background px-3 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Estimasi total dibayar</span>
-                  <span className="font-medium text-foreground">{formatIDR(totalWithInterest)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Per cicilan ({installmentCount}x)</span>
-                  <span className="font-medium text-foreground">{formatIDR(perInstallment)}</span>
-                </div>
-              </div>
-            )}
-          </div>
+          <RecurringTransactionSection
+            amountValue={amountValue}
+            installmentCount={installmentCount}
+            installmentRate={installmentRate}
+            periodSheetOpen={recurring.periodSheetOpen}
+            repeatEvery={recurring.repeatEvery}
+            repeatPeriod={recurring.repeatPeriod}
+            repeatUntil={recurring.repeatUntil}
+            untilPickerOpen={recurring.untilPickerOpen}
+            onPeriodSheetOpenChange={recurring.setPeriodSheetOpen}
+            onRepeatEveryChange={recurring.setRepeatEvery}
+            onRepeatPeriodChange={recurring.setRepeatPeriod}
+            onRepeatUntilChange={recurring.setRepeatUntil}
+            onUntilPickerOpenChange={recurring.setUntilPickerOpen}
+            onInstallmentRateChange={(v) => setValue("installmentRate", v, { shouldValidate: true })}
+          />
         )}
 
         {/* Wallet */}
@@ -709,75 +586,16 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
       </div>
 
-      {/* ── DESCRIPTION + PHOTO ── */}
-      <div className={cn("overflow-hidden", expenseCardShadow)}>
-        <div className="p-4">
-          <div className="flex items-start gap-2 min-w-0">
-            <textarea
-              {...register("description")}
-              placeholder="Deskripsi transaksi..."
-              rows={1}
-              className="min-h-[2.5rem] w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          </div>
-          {errors.description && (
-            <p className="mt-1 text-xs text-destructive">{errors.description.message}</p>
-          )}
-        </div>
-
-        <div className="border-t border-border" />
-        <div className="p-0">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => receipt.handlePhotoChange(e.target.files?.[0], () => {
-              if (fileRef.current) fileRef.current.value = "";
-            })}
-            className="hidden"
-          />
-          {receipt.photoPreview ? (
-            <div className="relative">
-              <Image
-                src={receipt.photoPreview}
-                alt={mode === "edit" ? "Preview lampiran" : "Preview lampiran baru"}
-                width={800}
-                height={256}
-                className="w-full max-h-52 object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-              {receipt.scanning && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 backdrop-blur-sm">
-                  <Sparkles className="w-6 h-6 text-primary animate-pulse" />
-                  <p className="text-sm font-medium text-white">Membaca nota...</p>
-                </div>
-              )}
-              <button
-                type="button"
-                disabled={receipt.scanning}
-                onClick={() => fileRef.current?.click()}
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-foreground backdrop-blur-sm transition-colors hover:bg-accent disabled:opacity-50"
-              >
-                <RotateCcw className="w-3 h-3" /> Ganti foto
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <span className="flex items-center gap-2">
-                <Paperclip className="h-4 w-4" />
-                Tambah lampiran
-              </span>
-              <Plus className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
+      <DescriptionPhotoSection
+        descriptionValue={descriptionValue}
+        onDescriptionChange={(v) => setValue("description", v, { shouldValidate: true })}
+        descriptionError={errors.description?.message}
+        fileRef={fileRef}
+        photoPreview={receipt.photoPreview}
+        scanning={receipt.scanning}
+        isEditMode={mode === "edit"}
+        onPhotoChange={receipt.handlePhotoChange}
+      />
 
       {/* ── MORE OPTIONS ── */}
       <div className={cn("overflow-hidden", expenseCardShadow)}>
@@ -906,73 +724,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         }}
         onSheetPrimaryChange={setSheetPrimaryId}
       />
-
-      {/* ── PERIOD SELECTOR SHEET ── */}
-      <Sheet open={periodSheetOpen} onOpenChange={setPeriodSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[60dvh] rounded-t-3xl px-5 py-6 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="text-left text-lg font-bold">Select Period</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-2">
-            {([
-              { value: "day", label: "Day" },
-              { value: "week", label: "Week" },
-              { value: "biweekly", label: "Biweekly" },
-              { value: "month", label: "Month" },
-              { value: "quarterly", label: "Quarterly" },
-              { value: "year", label: "Year" },
-            ] as { value: RepeatPeriod; label: string }[]).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  setRepeatPeriod(opt.value);
-                  setPeriodSheetOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors",
-                  repeatPeriod === opt.value
-                    ? "bg-primary/10 text-primary ring-1 ring-primary"
-                    : "text-foreground hover:bg-accent"
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                    repeatPeriod === opt.value
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-muted-foreground/30"
-                  )}
-                >
-                  {repeatPeriod === opt.value && <span className="h-2 w-2 rounded-full bg-current" />}
-                </span>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* ── UNTIL DATE PICKER ── */}
-      <Sheet open={untilPickerOpen} onOpenChange={setUntilPickerOpen}>
-        <SheetContent side="bottom" className="max-h-[55dvh] rounded-t-3xl px-4 py-6 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="text-left text-lg font-bold">Pilih Tanggal Berakhir</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 flex justify-center">
-            <Calendar
-              mode="single"
-              selected={repeatUntil ?? undefined}
-              onSelect={(d: Date | undefined) => {
-                if (!d) return;
-                setRepeatUntil(d);
-                setUntilPickerOpen(false);
-              }}
-              className="bg-transparent"
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
 
         <CategoryAddSheet
           open={addCategoryOpen}

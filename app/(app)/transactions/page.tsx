@@ -5,7 +5,7 @@ import { usePaginatedQuery, useQuery } from "convex/react";
 import Image from "next/image";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { ExpenseCard } from "@/components/expenses/ExpenseCard";
+import { TransactionCard } from "@/components/transactions/TransactionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -258,7 +258,7 @@ export default function ExpensesPage() {
 
       <div className="space-y-3">
         {results.map((transaction) => (
-          <ExpenseCard key={transaction._id} expense={transaction} />
+          <TransactionCard key={transaction._id} expense={transaction} />
         ))}
       </div>
 

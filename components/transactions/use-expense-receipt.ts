@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { toast } from "sonner";
 
-import { formatRupiah } from "./expense-form-helpers";
+import { formatRupiah } from "./transaction-helpers";
 
 type ReceiptExtraction = {
   amount: number | null;

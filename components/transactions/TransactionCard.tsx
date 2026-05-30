@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-interface ExpenseCardProps {
+interface TransactionCardProps {
   expense: {
     _id: string;
     direction: "expense" | "income";
@@ -44,7 +44,7 @@ interface ExpenseCardProps {
   };
 }
 
-function CardContent({ expense: transaction }: { expense: ExpenseCardProps["expense"] }) {
+function CardContent({ expense: transaction }: { expense: TransactionCardProps["expense"] }) {
   const installmentCount = transaction.installmentCount ?? 1;
   const installmentRate = transaction.installmentRate ?? 0;
   const totalWithInterest = Math.round(transaction.amount * (1 + installmentRate / 100));
@@ -157,7 +157,7 @@ function CardContent({ expense: transaction }: { expense: ExpenseCardProps["expe
   );
 }
 
-export function ExpenseCard({ expense }: ExpenseCardProps) {
+export function TransactionCard({ expense }: TransactionCardProps) {
   const canEdit = expense.isOwn !== false;
 
   if (!canEdit) {
@@ -172,7 +172,7 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
 
   return (
     <Link
-      href={`/expenses/${expense._id}/edit`}
+      href={`/transactions/${expense._id}/edit`}
       className={cn(
         "block relative rounded-2xl border border-border bg-card transition-opacity shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]"
       )}

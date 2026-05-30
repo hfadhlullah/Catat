@@ -3,7 +3,7 @@
 import { ViewTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { ExpenseForm } from "@/components/expenses/ExpenseForm";
+import { TransactionForm } from "@/components/transactions/TransactionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export default function NewExpensePage() {
             </span>
           </div>
         </div>
-        <ExpenseForm />
+        <TransactionForm />
       </div>
     </div>
     </ViewTransition>
