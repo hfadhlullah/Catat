@@ -4,6 +4,7 @@ import { LaptopMinimal, MoonStar, SunMedium } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { cn } from "@/lib/utils";
+import { haptics } from "@/hooks/use-haptics";
 
 const themeOptions = [
   { value: "light", label: "Light", icon: SunMedium },
@@ -33,7 +34,7 @@ export function ThemeSwitcher() {
             <button
               key={value}
               type="button"
-              onClick={() => setTheme(value)}
+              onClick={() => { haptics.light(); setTheme(value); }}
               className={cn(
                 "flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-center text-xs font-medium transition-colors",
                 active

@@ -38,6 +38,7 @@ import { useTransactionSplitBill } from "./use-transaction-split-bill";
 import { useRecurringTransaction } from "./use-recurring-transaction";
 import { cn } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
+import { haptics } from "@/hooks/use-haptics";
 
 const schema = z.object({
   amount: z.number().min(1, "Masukkan jumlah"),
@@ -329,14 +330,17 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
       if (mode === "edit") {
         if (!expenseId) throw new Error("Expense ID is required");
         await updateExpense({ id: expenseId, ...payload } as Parameters<typeof updateExpense>[0]);
+        haptics.medium();
         toast.success("Transaksi diperbarui!");
         router.push("/transactions");
       } else {
         await createExpense({ ...payload } as Parameters<typeof createExpense>[0]);
+        haptics.medium();
         toast.success(direction === "expense" ? "Pengeluaran disimpan!" : "Pemasukan disimpan!");
         router.push("/dashboard");
       }
     } catch (err: unknown) {
+      haptics.error();
       toast.error(
         err instanceof Error
           ? err.message
@@ -392,7 +396,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
             <button
               key={option.value}
               type="button"
-              onClick={() => handleDirectionChange(option.value as typeof direction)}
+              onClick={() => { haptics.light(); handleDirectionChange(option.value as typeof direction); }}
               className={cn(
                 "relative px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200",
                 direction === option.value

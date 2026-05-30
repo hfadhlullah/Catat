@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { haptics } from "@/hooks/use-haptics";
 import {
   Dialog,
   DialogContent,
@@ -124,6 +125,7 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                haptics.light();
               }}
               className="shrink-0"
             >
@@ -173,6 +175,7 @@ export function TransactionCard({ expense }: TransactionCardProps) {
   return (
     <Link
       href={`/transactions/${expense._id}/edit`}
+      onClick={haptics.light}
       className={cn(
         "block relative rounded-2xl border border-border bg-card transition-opacity shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]"
       )}

@@ -5,6 +5,7 @@ import { icons as solarIcons } from "@iconify-json/solar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { haptics } from "@/hooks/use-haptics";
 
 addCollection(solarIcons);
 
@@ -23,6 +24,7 @@ function NavItem({ href, icon, label, isActive }: { href: string; icon: string; 
     <Link
       href={href}
       aria-label={label}
+      onClick={haptics.light}
       className={cn(
         "flex flex-col items-center justify-center gap-0.5 px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
         isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -57,6 +59,7 @@ export function BottomNav() {
           <Link
             href="/transactions/new"
             aria-label="Tambah transaksi"
+            onClick={haptics.medium}
             transitionTypes={["page-slide-up"]}
             className="flex h-13 w-13 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30 transition-all duration-150 hover:bg-primary/90 active:scale-95"
           >

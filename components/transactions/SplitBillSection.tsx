@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { haptics } from "@/hooks/use-haptics";
 
 import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
@@ -62,7 +63,7 @@ export function SplitBillSection({
         </div>
         <button
           type="button"
-          onClick={onSplitBillToggle}
+          onClick={() => { haptics.light(); onSplitBillToggle(); }}
           className={cn(
             "rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150",
             splitBillEnabled
