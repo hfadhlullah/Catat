@@ -29,7 +29,7 @@ export default function EditExpensePage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const expense = useQuery(api.transactions.getTransactionById, { id: id as Id<"transactions"> });
+  const transaction = useQuery(api.transactions.getTransactionById, { id: id as Id<"transactions"> });
   const deleteTransaction = useMutation(api.transactions.deleteTransaction);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -52,7 +52,7 @@ export default function EditExpensePage({
     }
   }
 
-  if (expense === undefined) {
+  if (transaction === undefined) {
     return (
       <div className="relative min-h-screen pb-6">
         {/* Paper texture */}
@@ -85,11 +85,11 @@ export default function EditExpensePage({
     );
   }
 
-  if (expense === null) {
+  if (transaction === null) {
     return <RedirectTo path="/expenses" />;
   }
 
-  if (!expense.isOwner) {
+  if (!transaction.isOwner) {
     return (
       <div className="relative min-h-screen pb-6">
         {/* Paper texture */}
@@ -182,8 +182,8 @@ export default function EditExpensePage({
         </div>
         <ExpenseForm
           mode="edit"
-          expenseId={expense._id}
-          initialExpense={expense}
+          expenseId={transaction._id}
+          initialExpense={transaction}
         />
       </div>
     </div>

@@ -119,7 +119,7 @@ export default function ExpensesPage() {
       {wallets && wallets.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {wallets.map((wallet) => {
-            const active = selectedWalletId === wallet._id;
+            const active = effectiveSelectedWalletId === wallet._id;
             return (
               <button
                 key={wallet._id}
@@ -257,8 +257,8 @@ export default function ExpensesPage() {
        )}
 
       <div className="space-y-3">
-        {results.map((expense) => (
-          <ExpenseCard key={expense._id} expense={expense} />
+        {results.map((transaction) => (
+          <ExpenseCard key={transaction._id} expense={transaction} />
         ))}
       </div>
 

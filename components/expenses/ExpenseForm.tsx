@@ -28,6 +28,17 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CategoryAddSheet } from "./CategoryAddSheet";
+import {
+  expenseCardShadow,
+  formatRupiah,
+  getEqualSplitValues,
+  isRecurringTransactionType,
+  repeatPeriodLabels,
+  SplitParticipant,
+  transactionTypeOptions,
+  type RepeatPeriod,
+  type TransactionType,
+} from "./expense-form-helpers";
 import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
@@ -46,15 +57,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-
-type SplitParticipant = {
-  id: string;
-  userId?: string;
-  name: string;
-  amount: number;
-  isPaid: boolean;
-  paidAt?: number;
-};
 
 interface ExpenseFormProps {
   mode?: "create" | "edit";
@@ -88,22 +90,6 @@ interface ExpenseFormProps {
   };
 }
 
-function formatRupiah(value: string) {
-  const num = value.replace(/\D/g, "");
-  if (!num) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(num));
-}
-
-const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
-const transactionTypeOptions = [
-  { value: "default", label: "Default" },
-  { value: "upcoming", label: "Upcoming" },
-  { value: "subscription", label: "Subscription" },
-  { value: "repetitive", label: "Repetitive" },
-  { value: "lent", label: "Lent" },
-  { value: "borrowed", label: "Borrowed" },
-] as const;
-
 export function ExpenseForm({ mode = "create", expenseId, initialExpense }: ExpenseFormProps) {
   const router = useRouter();
   const amountRef = useRef<HTMLInputElement>(null);
@@ -131,13 +117,13 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [direction, setDirection] = useState<"expense" | "income">("expense");
-  const [transactionType, setTransactionType] = useState<(typeof transactionTypeOptions)[number]["value"]>("default");
+  const [transactionType, setTransactionType] = useState<TransactionType>("default");
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [sheetPrimaryId, setSheetPrimaryId] = useState<string | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [repeatEvery, setRepeatEvery] = useState(1);
-  const [repeatPeriod, setRepeatPeriod] = useState<"day" | "week" | "biweekly" | "month" | "quarterly" | "year">("month");
+  const [repeatPeriod, setRepeatPeriod] = useState<RepeatPeriod>("month");
   const [repeatUntil, setRepeatUntil] = useState<Date | null>(null);
   const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
   const [untilPickerOpen, setUntilPickerOpen] = useState(false);
@@ -441,8 +427,8 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         direction,
         transactionType: data.transactionType as "default" | "upcoming" | "subscription" | "repetitive" | "lent" | "borrowed",
         amount: data.amount,
-        installmentCount: (data.transactionType === "subscription" || data.transactionType === "repetitive") ? data.installmentCount : 1,
-        installmentRate: (data.transactionType === "subscription" || data.transactionType === "repetitive") ? data.installmentRate : 0,
+        installmentCount: isRecurringTransactionType(data.transactionType as TransactionType) ? data.installmentCount : 1,
+        installmentRate: isRecurringTransactionType(data.transactionType as TransactionType) ? data.installmentRate : 0,
         description: data.description,
         date: data.date.getTime(),
         categoryId: data.categoryId ? (data.categoryId as Id<"categories">) : undefined,
@@ -492,7 +478,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
   // Sync installmentCount when repeat config changes
   useEffect(() => {
-    if (transactionType !== "subscription" && transactionType !== "repetitive") return;
+    if (!isRecurringTransactionType(transactionType)) return;
     if (!repeatUntil) {
       setValue("installmentCount", repeatEvery, { shouldValidate: true });
       return;
@@ -517,15 +503,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     setValue("installmentCount", occurrences, { shouldValidate: true });
   }, [repeatEvery, repeatPeriod, repeatUntil, transactionType, selectedDate, setValue]);
 
-  const repeatPeriodLabels: Record<string, string> = {
-    day: "day",
-    week: "week",
-    biweekly: "biweekly",
-    month: "month",
-    quarterly: "quarterly",
-    year: "year",
-  };
-
   const directionFiltered = (categories ?? []).filter((cat) =>
     (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense")
   );
@@ -544,8 +521,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const splitMembers = walletMembers ?? [];
   const splitMemberNameMap = new Map(splitMembers.map((member) => [String(member.userId), member.name]));
   const splitParticipantCount = splitParticipants.length;
-  const equalPreviewBase = splitParticipantCount > 0 ? Math.floor(amountValue / splitParticipantCount) : 0;
-  const equalPreviewRemainder = splitParticipantCount > 0 ? amountValue - equalPreviewBase * splitParticipantCount : 0;
+  const { base: equalPreviewBase, remainder: equalPreviewRemainder } = getEqualSplitValues(amountValue, splitParticipantCount);
   const customSplitTotal = splitParticipants.reduce((sum, participant) => sum + participant.amount, 0);
   const customSplitRemaining = amountValue - customSplitTotal;
   const splitPaidCount = splitParticipants.filter((participant) => participant.isPaid).length;
@@ -561,7 +537,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-5">
       {/* ── DIRECTION + CATEGORY + AMOUNT + DATE ── */}
-      <div className={cn(cardShadow, "overflow-hidden p-4")}>
+      <div className={cn(expenseCardShadow, "overflow-hidden p-4")}>
         {/* Direction toggle */}
         <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted/50 p-1">
           {[
@@ -688,7 +664,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       )}
 
       {/* ── TIPE TRANSAKSI + CICILAN + WALLET ── */}
-      <div className={cn("space-y-3 p-4", cardShadow)}>
+      <div className={cn("space-y-3 p-4", expenseCardShadow)}>
         {/* Transaction type */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
           {transactionTypeOptions.map((option) => {
@@ -720,7 +696,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         )}
 
         {/* Cicilan (between transaction type and wallet) */}
-        {(transactionType === "subscription" || transactionType === "repetitive") && (
+        {isRecurringTransactionType(transactionType) && (
           <div className="space-y-3 rounded-xl border border-border bg-background/60 p-4">
             {/* Repeat every */}
             <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
@@ -835,7 +811,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </div>
 
       {/* ── DESCRIPTION + PHOTO ── */}
-      <div className={cn("overflow-hidden", cardShadow)}>
+      <div className={cn("overflow-hidden", expenseCardShadow)}>
         <div className="p-4">
           <div className="flex items-start gap-2 min-w-0">
             <textarea
@@ -903,7 +879,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </div>
 
       {/* ── MORE OPTIONS ── */}
-      <div className={cn("overflow-hidden", cardShadow)}>
+      <div className={cn("overflow-hidden", expenseCardShadow)}>
         <button
           type="button"
           onClick={() => setShowMoreOptions((v) => !v)}
@@ -1380,7 +1356,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
               { value: "month", label: "Month" },
               { value: "quarterly", label: "Quarterly" },
               { value: "year", label: "Year" },
-            ] as { value: typeof repeatPeriod; label: string }[]).map((opt) => (
+            ] as { value: RepeatPeriod; label: string }[]).map((opt) => (
               <button
                 key={opt.value}
                 type="button"
