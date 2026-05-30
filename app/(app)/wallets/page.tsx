@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { formatIDR } from "@/lib/currency";
+import { formatIDR, formatIDRCompact } from "@/lib/currency";
 import {
   Dialog,
   DialogContent,
@@ -605,15 +605,15 @@ export default function WalletsPage() {
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-muted/60 px-2 py-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Saldo</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDR(overview.totalBalance)}</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDRCompact(overview.totalBalance)}</p>
               </div>
               <div className="rounded-xl bg-muted/60 px-2 py-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Income</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDR(overview.totalMonthIncome)}</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDRCompact(overview.totalMonthIncome)}</p>
               </div>
               <div className="rounded-xl bg-muted/60 px-2 py-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Expense</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDR(overview.totalMonthExpense)}</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{formatIDRCompact(overview.totalMonthExpense)}</p>
               </div>
             </div>
 
@@ -660,7 +660,7 @@ export default function WalletsPage() {
                         Income {formatIDR(selectedWallet.monthIncome)} • Expense {formatIDR(selectedWallet.monthExpense)}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">{formatIDR(selectedWallet.balance)}</p>
+                    <p className="text-sm font-semibold text-foreground">{formatIDRCompact(selectedWallet.balance)}</p>
                   </div>
                   {selectedWallet.budgetAmount > 0 && (
                     <div className="mt-3">

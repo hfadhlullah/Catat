@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { formatIDR } from "@/lib/currency";
+import { formatIDR, formatIDRCompact } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -268,7 +268,7 @@ export default function DashboardPage() {
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
               <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">
-                {formatIDR(summary.expenseTotal)}
+                {formatIDRCompact(summary.expenseTotal)}
               </p>
             )}
           </div>
@@ -280,7 +280,7 @@ export default function DashboardPage() {
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
               <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">
-                {formatIDR(summary.incomeTotal)}
+                {formatIDRCompact(summary.incomeTotal)}
               </p>
             )}
           </div>
@@ -360,7 +360,7 @@ export default function DashboardPage() {
                     : "bg-background text-muted-foreground hover:bg-accent"
                 )}
               >
-                Pengeluaran
+                Keluar
               </button>
               <button
                 type="button"
@@ -372,7 +372,7 @@ export default function DashboardPage() {
                     : "bg-background text-muted-foreground hover:bg-accent"
                 )}
               >
-                Pemasukan
+                Masuk
               </button>
             </div>
           </div>
@@ -432,7 +432,7 @@ export default function DashboardPage() {
                       dominantBaseline="middle"
                       className="fill-card-foreground text-[16px] font-semibold"
                     >
-                      {formatIDR(summary.expenseTotal)}
+                      {formatIDRCompact(summary.expenseTotal)}
                     </text>
                   </PieChart>
                 </ResponsiveContainer>
@@ -458,7 +458,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-foreground">
-                        {formatIDR(category.total)}
+                        {formatIDRCompact(category.total)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {category.percentage.toFixed(0)}%
@@ -523,7 +523,7 @@ export default function DashboardPage() {
                       dominantBaseline="middle"
                       className="fill-emerald-600 dark:fill-emerald-400 text-[16px] font-semibold"
                     >
-                      {formatIDR(summary.incomeTotal)}
+                      {formatIDRCompact(summary.incomeTotal)}
                     </text>
                   </PieChart>
                 </ResponsiveContainer>
@@ -549,7 +549,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-foreground">
-                        {formatIDR(category.total)}
+                        {formatIDRCompact(category.total)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {category.percentage.toFixed(0)}%

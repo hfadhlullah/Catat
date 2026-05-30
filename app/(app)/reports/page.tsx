@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import Image from "next/image";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { formatIDR } from "@/lib/currency";
+import { formatIDR, formatIDRCompact } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, subMonths, addMonths } from "date-fns";
@@ -190,7 +190,7 @@ export default function ReportsPage() {
             {isLoading ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">{formatIDR(summary.expenseTotal)}</p>
+              <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">{formatIDRCompact(summary.expenseTotal)}</p>
             )}
           </div>
           <div className="text-right">
@@ -200,7 +200,7 @@ export default function ReportsPage() {
             {isLoading ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">{formatIDR(summary.incomeTotal)}</p>
+              <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">{formatIDRCompact(summary.incomeTotal)}</p>
             )}
           </div>
         </div>
