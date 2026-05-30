@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TriangleIcon } from "lucide-react";
 import { formatIDR } from "@/lib/currency";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -66,8 +67,11 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="truncate font-medium text-card-foreground">{transaction.description}</p>
-          <p className={cn("shrink-0 font-semibold", isExpense ? "text-card-foreground" : "text-emerald-600 dark:text-emerald-400")}>
-            {isExpense ? "-" : "+"}{formatIDR(transaction.amount)}
+          <p className={cn("shrink-0 font-bold flex items-center gap-0.5", transaction.amount === 0 ? "text-card-foreground" : isExpense ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")}>
+            {transaction.amount > 0 && (isExpense
+              ? <TriangleIcon className="w-2 h-2 shrink-0 rotate-180 fill-current" />
+              : <TriangleIcon className="w-2 h-2 shrink-0 fill-current" />)}
+            {formatIDR(transaction.amount)}
           </p>
         </div>
         <div className="flex gap-2 mt-1 flex-wrap">

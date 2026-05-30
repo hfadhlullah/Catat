@@ -11,7 +11,7 @@ const fontMono = IBM_Plex_Mono({ subsets: ["latin"], variable: "--font-mono", we
 
 export const metadata: Metadata = {
   title: "Catat",
-  description: "Pencatatan pengeluaran konstruksi",
+  description: "Pencatatan keuangan pribadi dan keluarga",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Catat" },
 };

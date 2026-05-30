@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, subMonths, addMonths } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, TriangleIcon } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -190,7 +190,7 @@ export default function ReportsPage() {
             {isLoading ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">{formatIDRCompact(summary.expenseTotal)}</p>
+              <p className={cn("mt-2 text-2xl font-semibold tracking-tight flex items-center gap-1", summary.expenseTotal > 0 ? "text-destructive" : "text-card-foreground")}>{summary.expenseTotal > 0 && <TriangleIcon className="w-3 h-3 shrink-0 fill-current rotate-180" />}{formatIDRCompact(summary.expenseTotal)}</p>
             )}
           </div>
           <div className="text-right">
@@ -200,7 +200,7 @@ export default function ReportsPage() {
             {isLoading ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">{formatIDRCompact(summary.incomeTotal)}</p>
+              <p className={cn("mt-2 text-2xl font-semibold tracking-tight flex items-center justify-end gap-1", summary.incomeTotal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-card-foreground")}>{summary.incomeTotal > 0 && <TriangleIcon className="w-3 h-3 shrink-0 fill-current" />}{formatIDRCompact(summary.incomeTotal)}</p>
             )}
           </div>
         </div>
@@ -284,7 +284,7 @@ export default function ReportsPage() {
                       <span className="text-sm text-foreground">{cat.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
-                        <span className="text-sm font-medium text-foreground">{formatIDR(cat.total)}</span>
+                        <span className={cn("text-sm font-medium flex items-center gap-0.5", cat.total > 0 ? "text-destructive" : "text-foreground")}>{cat.total > 0 && <TriangleIcon className="w-2 h-2 shrink-0 fill-current rotate-180" />}{formatIDR(cat.total)}</span>
                       </div>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -392,7 +392,7 @@ export default function ReportsPage() {
                       <span className="text-sm text-foreground">{cat.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
-                        <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatIDR(cat.total)}</span>
+                        <span className={cn("text-sm font-medium flex items-center gap-0.5", cat.total > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>{cat.total > 0 && <TriangleIcon className="w-2 h-2 shrink-0 fill-current" />}{formatIDR(cat.total)}</span>
                       </div>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">

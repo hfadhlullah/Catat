@@ -20,7 +20,7 @@ import {
   PieChart,
   Pie,
 } from "recharts";
-import { UserPlus, Check, X, ArrowRight } from "lucide-react";
+import { UserPlus, Check, X, ArrowRight, TriangleIcon } from "lucide-react";
 
 const COLORS = [
   "#3b82f6",
@@ -267,7 +267,8 @@ export default function DashboardPage() {
             {summary === undefined ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">
+              <p className={cn("mt-2 text-2xl font-semibold tracking-tight flex items-center gap-1", summary.expenseTotal > 0 ? "text-destructive" : "text-card-foreground")}>
+                {summary.expenseTotal > 0 && <TriangleIcon className="w-3 h-3 shrink-0 fill-current rotate-180" />}
                 {formatIDRCompact(summary.expenseTotal)}
               </p>
             )}
@@ -279,7 +280,8 @@ export default function DashboardPage() {
             {summary === undefined ? (
               <Skeleton className="mt-2 h-10 w-full bg-muted" />
             ) : (
-              <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">
+              <p className={cn("mt-2 text-2xl font-semibold tracking-tight flex items-center justify-end gap-1", summary.incomeTotal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-card-foreground")}>
+                {summary.incomeTotal > 0 && <TriangleIcon className="w-3 h-3 shrink-0 fill-current" />}
                 {formatIDRCompact(summary.incomeTotal)}
               </p>
             )}
@@ -457,7 +459,8 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className={cn("text-sm font-medium flex items-center justify-end gap-0.5", category.total > 0 ? "text-destructive" : "text-foreground")}>
+                        {category.total > 0 && <TriangleIcon className="w-2 h-2 shrink-0 fill-current rotate-180" />}
                         {formatIDRCompact(category.total)}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -548,7 +551,8 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className={cn("text-sm font-medium flex items-center justify-end gap-0.5", category.total > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                        {category.total > 0 && <TriangleIcon className="w-2 h-2 shrink-0 fill-current" />}
                         {formatIDRCompact(category.total)}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -624,11 +628,12 @@ export default function DashboardPage() {
                 <div className="text-right shrink-0">
                   <p
                     className={cn(
-                      "text-sm font-semibold",
-                      tx.direction === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
+                      "text-sm font-bold flex items-center gap-0.5",
+                      tx.amount === 0 ? "text-foreground" : tx.direction === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                     )}
                   >
-                    {tx.direction === "income" ? "+" : "-"}{formatIDR(tx.amount)}
+                    {tx.amount > 0 && <TriangleIcon className={cn("w-2 h-2 shrink-0 fill-current", tx.direction === "expense" && "rotate-180")} />}
+                    {formatIDR(tx.amount)}
                   </p>
                 </div>
               </Link>
