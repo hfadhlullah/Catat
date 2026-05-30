@@ -24,11 +24,12 @@ function NavItem({ href, icon, label, isActive }: { href: string; icon: string; 
       href={href}
       aria-label={label}
       className={cn(
-        "flex items-center justify-center px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
+        "flex flex-col items-center justify-center gap-0.5 px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
         isActive ? "bg-primary/12 text-primary" : "text-muted-foreground hover:text-foreground"
       )}
     >
       <Icon icon={icon} className={cn("w-6 h-6 transition-transform duration-200", isActive && "scale-110")} />
+      <span className="text-[10px] font-medium leading-none">{label}</span>
     </Link>
   );
 }

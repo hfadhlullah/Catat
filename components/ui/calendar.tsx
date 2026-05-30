@@ -104,16 +104,11 @@ function Calendar({
           "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
           defaultClassNames.day
         ),
-        range_start: cn(
-          "bg-accent rounded-l-md",
-          defaultClassNames.range_start
-        ),
-        range_middle: cn("rounded-none", defaultClassNames.range_middle),
-        range_end: cn("bg-accent rounded-r-md", defaultClassNames.range_end),
-        today: cn(
-          "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none",
-          defaultClassNames.today
-        ),
+        range_start: "bg-accent rounded-l-md",
+        range_middle: "bg-accent/50 rounded-none",
+        range_end: "bg-accent rounded-r-md",
+        selected: "rounded-md",
+        today: "bg-primary/20 text-primary font-semibold rounded-md data-[selected=true]:bg-transparent data-[selected=true]:rounded-none",
         outside: cn(
           "text-muted-foreground aria-selected:text-muted-foreground",
           defaultClassNames.outside
