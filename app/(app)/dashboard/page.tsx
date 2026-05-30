@@ -11,7 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { CatatLogo } from "@/components/brand/CatatLogo";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -37,6 +36,7 @@ const COLORS = [
 
 export default function DashboardPage() {
   const period = format(new Date(), "yyyy-MM");
+  const userProfile = useQuery(api.users.getCurrentUserProfile);
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const [compositionDir, setCompositionDir] = useState<"expense" | "income">("expense");
@@ -101,7 +101,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 pt-4">
         <div>
-          <CatatLogo className="h-10" />
+          <p className="text-2xl font-bold text-card-foreground">Hi there, <span className="font-extrabold">{userProfile?.name ?? "…"}</span></p>
           <div className="mt-3 flex items-center gap-2">
             <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
               Dashboard
