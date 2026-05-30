@@ -19,7 +19,6 @@ import {
   FileText,
   Plus,
   RotateCcw,
-  Search,
   Sparkles,
   X,
 } from "lucide-react";
@@ -28,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CategoryAddSheet } from "./CategoryAddSheet";
 import { SplitBillSection } from "./SplitBillSection";
+import { TransactionCategorySheet } from "./TransactionCategorySheet";
 import { VendorSection } from "./VendorSection";
 import {
   expenseCardShadow,
@@ -879,139 +879,33 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       </button>
 
       {/* ── CATEGORY SHEET ── */}
-      <Sheet open={categorySheetOpen} onOpenChange={(open) => {
-        setCategorySheetOpen(open);
-        if (!open) setSheetPrimaryId(null);
-      }}>
-        <SheetContent side="bottom" className="max-h-[75dvh] rounded-t-3xl px-4 py-6 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>
-              {(() => {
-                if (sheetPrimaryId) {
-                  const p = primaryCategories.find((c) => c._id === sheetPrimaryId);
-                  return p ? `${p.icon} ${p.name}` : "Pilih Kategori";
-                }
-                return "Pilih Kategori";
-              })()}
-            </SheetTitle>
-          </SheetHeader>
-
-          {sheetPrimaryId && (
-            <button
-              type="button"
-              onClick={() => setSheetPrimaryId(null)}
-              className="mt-2 flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
-            >
-              ← Kembali ke utama
-            </button>
-          )}
-
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={categorySearch}
-              onChange={(e) => setCategorySearch(e.target.value)}
-              placeholder="Cari kategori..."
-              className="w-full rounded-xl border border-border bg-card py-2 pl-8 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-            />
-          </div>
-
-          {/* Primary categories grid */}
-          {!sheetPrimaryId && (
-            <div className="mt-4 grid grid-cols-2 gap-3 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4">
-              {filteredCategories.filter((c) => !c.parentId).map((cat) => {
-                const hasSubs = subCategories.some((s) => s.parentId === cat._id);
-                const active = selectedCategoryId === cat._id;
-                return (
-                  <button
-                    key={cat._id}
-                    type="button"
-                    onClick={() => {
-                      if (hasSubs) {
-                        setSheetPrimaryId(cat._id);
-                      } else {
-                        setValue("categoryId", cat._id, { shouldValidate: true });
-                        setCategorySheetOpen(false);
-                      }
-                    }}
-                    className={cn(
-                      "rounded-2xl border p-3 text-center transition-all",
-                      active ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
-                    )}
-                  >
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style={{ backgroundColor: `${cat.color ?? "#e2e8f0"}33` }}>
-                      {cat.icon ?? "📁"}
-                    </div>
-                    <p className="mt-2 text-xs font-medium text-foreground">{cat.name}</p>
-                    {hasSubs && (
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">Lihat sub ›</p>
-                    )}
-                  </button>
-                );
-              })}
-                <button
-                  type="button"
-                  onClick={handleOpenAddCategory}
-                  className="rounded-2xl border border-dashed border-border p-3 text-center text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-                >
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-2xl">+</div>
-                <p className="mt-2 text-xs font-medium">Tambah</p>
-              </button>
-            </div>
-          )}
-
-          {/* Sub-categories for selected primary */}
-          {sheetPrimaryId && (
-            <div className="mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setValue("categoryId", sheetPrimaryId, { shouldValidate: true });
-                  setCategorySheetOpen(false);
-                  setSheetPrimaryId(null);
-                }}
-                className={cn(
-                  "w-full rounded-xl border px-4 py-3 text-left text-sm transition-all",
-                  selectedCategoryId === sheetPrimaryId
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:border-primary/30"
-                )}
-              >
-                <span className="font-medium text-foreground">Pilih kategori utama</span>
-              </button>
-
-              {currentPrimarySubs.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4">
-                  {currentPrimarySubs.map((cat) => {
-                    const active = selectedCategoryId === cat._id;
-                    return (
-                      <button
-                        key={cat._id}
-                        type="button"
-                        onClick={() => {
-                          setValue("categoryId", cat._id, { shouldValidate: true });
-                          setCategorySheetOpen(false);
-                          setSheetPrimaryId(null);
-                        }}
-                        className={cn(
-                          "rounded-2xl border p-3 text-center transition-all",
-                          active ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
-                        )}
-                      >
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style={{ backgroundColor: `${cat.color ?? "#e2e8f0"}33` }}>
-                          {cat.icon ?? "📁"}
-                        </div>
-                        <p className="mt-2 text-xs font-medium text-foreground">{cat.name}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      <TransactionCategorySheet
+        categorySearch={categorySearch}
+        currentPrimarySubs={currentPrimarySubs}
+        filteredCategories={filteredCategories}
+        open={categorySheetOpen}
+        primaryCategories={primaryCategories}
+        selectedCategoryId={selectedCategoryId}
+        sheetPrimaryId={sheetPrimaryId}
+        subCategories={subCategories}
+        onCategorySearchChange={setCategorySearch}
+        onOpenAddCategory={handleOpenAddCategory}
+        onOpenChange={(open) => {
+          setCategorySheetOpen(open);
+          if (!open) setSheetPrimaryId(null);
+        }}
+        onSelectCategory={(categoryId) => {
+          setValue("categoryId", categoryId, { shouldValidate: true });
+          setCategorySheetOpen(false);
+          setSheetPrimaryId(null);
+        }}
+        onSelectPrimary={(categoryId) => {
+          setValue("categoryId", categoryId, { shouldValidate: true });
+          setCategorySheetOpen(false);
+          setSheetPrimaryId(null);
+        }}
+        onSheetPrimaryChange={setSheetPrimaryId}
+      />
 
       {/* ── PERIOD SELECTOR SHEET ── */}
       <Sheet open={periodSheetOpen} onOpenChange={setPeriodSheetOpen}>

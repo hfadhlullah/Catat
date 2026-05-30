@@ -13,6 +13,9 @@ function getConvexHostname(): string | undefined {
 const convexHostname = getConvexHostname();
 
 const nextConfig: NextConfig = {
+  experimental: {
+    viewTransition: true,
+  },
   images: {
     dangerouslyAllowLocalIP: true,
     remotePatterns: [

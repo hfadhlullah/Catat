@@ -1,5 +1,6 @@
 "use client";
 
+import { ViewTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
@@ -10,6 +11,7 @@ export default function NewExpensePage() {
   const router = useRouter();
 
   return (
+    <ViewTransition enter="page-slide-up" exit="page-slide-down" default="none">
     <div className="relative min-h-screen pb-6">
       {/* Paper texture */}
       <div
@@ -43,5 +45,6 @@ export default function NewExpensePage() {
         <ExpenseForm />
       </div>
     </div>
+    </ViewTransition>
   );
 }

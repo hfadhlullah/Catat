@@ -25,11 +25,13 @@ function NavItem({ href, icon, label, isActive }: { href: string; icon: string; 
       aria-label={label}
       className={cn(
         "flex flex-col items-center justify-center gap-0.5 px-2.5 py-2 rounded-xl transition-all duration-200 w-14",
-        isActive ? "bg-primary/12 text-primary" : "text-muted-foreground hover:text-foreground"
+        isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
       )}
     >
-      <Icon icon={icon} className={cn("w-6 h-6 transition-transform duration-200", isActive && "scale-110")} />
-      <span className="text-[10px] font-medium leading-none">{label}</span>
+      <span className={cn("flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200", isActive && "bg-primary/12")}>
+        <Icon icon={icon} className={cn("w-6 h-6 transition-transform duration-200", isActive && "scale-110")} />
+      </span>
+      <span className={cn("text-xs leading-none", isActive ? "font-bold" : "font-medium")}>{label}</span>
     </Link>
   );
 }
@@ -55,6 +57,7 @@ export function BottomNav() {
           <Link
             href="/expenses/new"
             aria-label="Tambah transaksi"
+            transitionTypes={["page-slide-up"]}
             className="flex h-13 w-13 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30 transition-all duration-150 hover:bg-primary/90 active:scale-95"
           >
             <span className="text-primary-foreground text-3xl leading-none font-medium">+</span>
