@@ -1,16 +1,17 @@
 "use client";
 
-import { type ElementType, type FormEvent, useState } from "react";
+import { type ElementType, type FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { KeyRound, LogOut, Mail, PencilLine, Shield, User2, Users, Plus, Wallet, Check, SlidersHorizontal } from "lucide-react";
+import { KeyRound, LogOut, Mail, PencilLine, Shield, User2, Users, Plus, Wallet, Check, SlidersHorizontal, FileUp, Database, AlertTriangle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,155 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 import { toast } from "sonner";
+
+type ImportedCsvRow = {
+  rowNumber: number;
+  date: string;
+  category: string;
+  subCategory: string;
+  detail: string;
+  quantity?: string;
+  unit?: string;
+  debit?: string;
+  credit?: string;
+  raw: string;
+};
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function parseCsvRecords(text: string) {
+  const records: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"') {
+      current += char;
+      if (inQuotes && next === '"') {
+        current += next;
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") {
+        index += 1;
+      }
+      if (current.trim().length > 0) {
+        records.push(current);
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim().length > 0) {
+    records.push(current);
+  }
+
+  return records;
+}
+
+function parseImportedCsv(text: string) {
+  const lines = parseCsvRecords(text.replace(/^\uFEFF/, ""));
+  if (lines.length <= 1) return [] as ImportedCsvRow[];
+
+  const rows: ImportedCsvRow[] = [];
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const columns = parseCsvLine(line);
+    if (columns.length < 10) continue;
+
+    const [,
+      date,
+      category,
+      subCategory,
+      detail,
+      quantity,
+      maybeUnit,
+      maybeSatuan,
+      debit,
+      credit] = columns;
+
+    rows.push({
+      rowNumber: index + 1,
+      date: date ?? "",
+      category: category ?? "",
+      subCategory: subCategory ?? "",
+      detail: detail ?? "",
+      quantity: quantity ?? "",
+      unit: maybeSatuan || maybeUnit || "",
+      debit: debit ?? "",
+      credit: credit ?? "",
+      raw: line,
+    });
+  }
+
+  return rows;
+}
+
+function parseMoneyPreview(raw: string | undefined) {
+  const cleaned = (raw ?? "").replace(/Rp/gi, "").replace(/["'\s]/g, "").replace(/,/g, "").replace(/[^0-9.-]/g, "");
+  if (!cleaned || cleaned === "-" || cleaned === ".") return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function classifyPreviewDirection(row: ImportedCsvRow) {
+  const category = row.category.trim().toUpperCase();
+  const combined = `${row.subCategory} ${row.detail}`.toLowerCase();
+  const debit = parseMoneyPreview(row.debit);
+  const credit = parseMoneyPreview(row.credit);
+
+  if (["bank in", "cash in", "investment", "initial investment", "setor", "modal"].some((item) => combined.includes(item))) {
+    return "income" as const;
+  }
+  if (["bank out", "cash out", "transfer out", "withdraw", "bayar", "payment"].some((item) => combined.includes(item))) {
+    return "expense" as const;
+  }
+  if (category === "BANK IN/OUT") {
+    if (debit && !credit) return "income" as const;
+    if (credit && !debit) return "expense" as const;
+  }
+  if (credit && !debit) return "expense" as const;
+  if (debit && !credit) return "income" as const;
+  return null;
+}
 
 function DetailRow({
   icon: Icon,
@@ -63,6 +213,7 @@ export default function ProfilePage() {
   const inviteMember = useMutation(api.walletSharing.inviteMember);
   const grantAccess = useMutation(api.walletSharing.grantAccess);
   const removeMember = useMutation(api.walletSharing.removeMember);
+  const importTransactions = useMutation(api.imports.importTransactionsFromCsv);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
@@ -81,6 +232,27 @@ export default function ProfilePage() {
   const [managingMember, setManagingMember] = useState<{ userId: string; name: string } | null>(null);
   const [managingMemberWallets, setManagingMemberWallets] = useState<Set<string>>(new Set());
   const [savingAccess, setSavingAccess] = useState(false);
+  const [walletMode, setWalletMode] = useState<"existing" | "new">("existing");
+  const [selectedImportWalletId, setSelectedImportWalletId] = useState<string>("");
+  const [newImportWalletName, setNewImportWalletName] = useState("");
+  const [parsedImportRows, setParsedImportRows] = useState<ImportedCsvRow[]>([]);
+  const [importFileName, setImportFileName] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; message: string }>>([]);
+  const [importSummary, setImportSummary] = useState<{ imported: number; incomeCount: number; expenseCount: number; skippedCount: number } | null>(null);
+
+  const importPreview = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    let ambiguous = 0;
+    for (const row of parsedImportRows) {
+      const direction = classifyPreviewDirection(row);
+      if (direction === "income") income += 1;
+      else if (direction === "expense") expense += 1;
+      else ambiguous += 1;
+    }
+    return { total: parsedImportRows.length, income, expense, ambiguous };
+  }, [parsedImportRows]);
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -214,6 +386,60 @@ export default function ProfilePage() {
       toast.error(error instanceof Error ? error.message : "Gagal memperbarui akses");
     } finally {
       setSavingAccess(false);
+    }
+  }
+
+  async function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const rows = parseImportedCsv(text);
+      setParsedImportRows(rows);
+      setImportFileName(file.name);
+      setImportErrors([]);
+      setImportSummary(null);
+      toast.success(`${rows.length} baris siap diimpor`);
+    } catch {
+      toast.error("Gagal membaca file CSV");
+    }
+  }
+
+  async function handleImportSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (parsedImportRows.length === 0) {
+      toast.error("Pilih file CSV terlebih dulu");
+      return;
+    }
+    if (walletMode === "existing" && !selectedImportWalletId) {
+      toast.error("Pilih wallet tujuan");
+      return;
+    }
+    if (walletMode === "new" && !newImportWalletName.trim()) {
+      toast.error("Isi nama wallet baru");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const result = await importTransactions({
+        rows: parsedImportRows,
+        walletId: walletMode === "existing" ? (selectedImportWalletId as Id<"wallets">) : undefined,
+        newWalletName: walletMode === "new" ? newImportWalletName.trim() : undefined,
+      });
+      setImportSummary({
+        imported: result.imported,
+        incomeCount: result.incomeCount,
+        expenseCount: result.expenseCount,
+        skippedCount: result.skippedCount,
+      });
+      setImportErrors(result.errors);
+      toast.success(`Import selesai: ${result.imported} transaksi masuk`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengimpor CSV");
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -687,6 +913,139 @@ export default function ProfilePage() {
             </div>
           </DialogContent>
         </Dialog>
+      </section>
+
+      <section className="relative rounded-2xl border border-border bg-card shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
+        <div className="rounded-t-2xl border-b border-border bg-gradient-to-b from-primary/10 to-transparent p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+              <FileUp className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-card-foreground">Import CSV</p>
+              <p className="text-xs text-muted-foreground">Import transaksi ke user yang sedang login</p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleImportSubmit} className="space-y-4 p-5">
+          <div className="space-y-2">
+            <label htmlFor="import-csv" className="text-sm text-foreground">File CSV</label>
+            <Input id="import-csv" type="file" accept=".csv,text/csv" onChange={handleImportFileChange} className="border-border bg-background text-foreground" />
+            <p className="text-xs text-muted-foreground">Gunakan file dengan kolom `CATEGORY`, `SUB CATEGORY`, `DETAIL`, `Debit`, dan `Kredit`.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setWalletMode("existing")}
+              className={cn(
+                "rounded-2xl border px-4 py-3 text-left transition-colors",
+                walletMode === "existing" ? "border-primary bg-primary/5" : "border-border bg-background"
+              )}
+            >
+              <p className="text-sm font-medium text-foreground">Pakai wallet yang ada</p>
+              <p className="text-xs text-muted-foreground">Cocok untuk wallet proyek yang sudah dibuat</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWalletMode("new")}
+              className={cn(
+                "rounded-2xl border px-4 py-3 text-left transition-colors",
+                walletMode === "new" ? "border-primary bg-primary/5" : "border-border bg-background"
+              )}
+            >
+              <p className="text-sm font-medium text-foreground">Buat wallet baru</p>
+              <p className="text-xs text-muted-foreground">Bikin wallet otomatis saat import</p>
+            </button>
+          </div>
+
+          {walletMode === "existing" ? (
+            <div className="space-y-2">
+              <label className="text-sm text-foreground">Wallet tujuan</label>
+              <Select value={selectedImportWalletId} onValueChange={setSelectedImportWalletId}>
+                <SelectTrigger className="border-border bg-background text-foreground">
+                  <SelectValue placeholder="Pilih wallet" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(ownedWallets ?? []).map((wallet) => (
+                    <SelectItem key={wallet._id} value={wallet._id}>{wallet.label || wallet.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="new-wallet-name" className="text-sm text-foreground">Nama wallet baru</label>
+              <Input
+                id="new-wallet-name"
+                value={newImportWalletName}
+                onChange={(e) => setNewImportWalletName(e.target.value)}
+                placeholder="Aquaponic Dev Investment - Gadog"
+                className="border-border bg-background text-foreground"
+              />
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-border bg-muted/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Database className="h-4 w-4" />
+              Ringkasan file
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-background px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Nama file</p>
+                <p className="mt-1 truncate text-sm text-foreground">{importFileName || "Belum dipilih"}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total baris</p>
+                <p className="mt-1 text-sm text-foreground">{importPreview.total}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Income terdeteksi</p>
+                <p className="mt-1 text-sm text-foreground">{importPreview.income}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Expense terdeteksi</p>
+                <p className="mt-1 text-sm text-foreground">{importPreview.expense}</p>
+              </div>
+            </div>
+            {importPreview.ambiguous > 0 && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{importPreview.ambiguous} baris masih ambigu dan akan dilewati saat import.</p>
+              </div>
+            )}
+          </div>
+
+          {importSummary && (
+            <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
+              <p className="font-medium">Hasil import</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <p>Berhasil: {importSummary.imported}</p>
+                <p>Income: {importSummary.incomeCount}</p>
+                <p>Expense: {importSummary.expenseCount}</p>
+                <p>Dilewati: {importSummary.skippedCount}</p>
+              </div>
+            </div>
+          )}
+
+          {importErrors.length > 0 && (
+            <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
+              <p className="text-sm font-medium text-foreground">Contoh error baris</p>
+              <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                {importErrors.slice(0, 8).map((error) => (
+                  <p key={`${error.rowNumber}-${error.message}`}>Baris {error.rowNumber}: {error.message}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Button type="submit" className="h-11 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90" disabled={isImporting || parsedImportRows.length === 0}>
+            {isImporting ? "Mengimpor..." : "Import CSV"}
+          </Button>
+        </form>
       </section>
     </div>
   );

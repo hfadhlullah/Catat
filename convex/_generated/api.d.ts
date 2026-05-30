@@ -14,6 +14,7 @@ import type * as categories from "../categories.js";
 import type * as debugAuth from "../debugAuth.js";
 import type * as expenses from "../expenses.js";
 import type * as http from "../http.js";
+import type * as imports from "../imports.js";
 import type * as incomes from "../incomes.js";
 import type * as ocr from "../ocr.js";
 import type * as profile from "../profile.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   debugAuth: typeof debugAuth;
   expenses: typeof expenses;
   http: typeof http;
+  imports: typeof imports;
   incomes: typeof incomes;
   ocr: typeof ocr;
   profile: typeof profile;

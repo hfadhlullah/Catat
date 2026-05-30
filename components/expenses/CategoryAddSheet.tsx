@@ -35,6 +35,7 @@ interface CategoryAddSheetProps {
   onOpenChange: (open: boolean) => void;
   onCreated: (id: Id<"categories">) => void;
   defaultDirection?: "expense" | "income";
+  walletId?: Id<"wallets">;
 }
 
 export function CategoryAddSheet({
@@ -42,8 +43,9 @@ export function CategoryAddSheet({
   onOpenChange,
   onCreated,
   defaultDirection = "expense",
+  walletId,
 }: CategoryAddSheetProps) {
-  const categories = useQuery(api.categories.listCategories);
+  const categories = useQuery(api.categories.listCategories, walletId ? { walletId } : "skip");
   const createCategory = useMutation(api.categories.createCategory);
 
   const [name, setName] = useState("");
@@ -89,12 +91,17 @@ export function CategoryAddSheet({
       toast.error("Pilih kategori utama");
       return;
     }
+    if (!walletId) {
+      toast.error("Pilih wallet dulu sebelum menambah kategori");
+      return;
+    }
     setCreating(true);
     try {
       const id = await createCategory({
         name: trimmed,
         icon: icon.trim() || undefined,
         color,
+        walletId,
         parentId: isSub && parentId ? (parentId as Id<"categories">) : undefined,
       });
       toast.success(isSub ? "Subkategori ditambahkan" : "Kategori ditambahkan");

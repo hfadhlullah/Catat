@@ -116,18 +116,22 @@ async function validateTransactionPayload(
     }
   }
 
-  if (args.categoryId) {
-    const category = await ctx.db.get(args.categoryId);
-    if (
-      !category ||
-      !category.isActive ||
-      (!category.isDefault && !accessibleIds.includes(category.createdBy as string))
-    ) {
-      throw new ConvexError("Kategori tidak valid");
-    }
+    if (args.categoryId) {
+      const category = await ctx.db.get(args.categoryId);
+      if (
+        !category ||
+        !category.isActive ||
+        (!category.isDefault && !accessibleIds.includes(category.createdBy as string))
+      ) {
+        throw new ConvexError("Kategori tidak valid");
+      }
 
-    if (args.direction === "expense" && category.directionScope === "income") {
-      throw new ConvexError("Kategori hanya untuk pemasukan");
+      if (!category.isDefault && category.walletId !== args.walletId) {
+        throw new ConvexError("Kategori tidak sesuai wallet");
+      }
+
+      if (args.direction === "expense" && category.directionScope === "income") {
+        throw new ConvexError("Kategori hanya untuk pemasukan");
     }
 
     if (args.direction === "income" && category.directionScope === "expense") {

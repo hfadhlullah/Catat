@@ -19,6 +19,7 @@ export default defineSchema({
 
   categories: defineTable({
     createdBy: v.optional(v.id("userProfiles")),
+    walletId: v.optional(v.id("wallets")),
     name: v.string(),
     color: v.optional(v.string()),
     icon: v.optional(v.string()),
@@ -29,6 +30,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_created_by", ["createdBy"])
+    .index("by_wallet", ["walletId"])
     .index("by_parent", ["parentId"]),
 
   transactions: defineTable({
@@ -52,6 +54,8 @@ export default defineSchema({
     submittedBy: v.id("userProfiles"),
     receiptStorageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
+    importSource: v.optional(v.string()),
+    importFingerprint: v.optional(v.string()),
     legacyExpenseId: v.optional(v.id("expenses")),
     legacyIncomeId: v.optional(v.id("incomes")),
     createdAt: v.number(),
@@ -65,6 +69,7 @@ export default defineSchema({
     .index("by_wallet", ["walletId"])
     .index("by_submitted_by_direction", ["submittedBy", "direction"])
     .index("by_wallet_direction", ["walletId", "direction"])
+    .index("by_import_fingerprint", ["importFingerprint"])
     .index("by_legacy_expense", ["legacyExpenseId"])
     .index("by_legacy_income", ["legacyIncomeId"]),
 

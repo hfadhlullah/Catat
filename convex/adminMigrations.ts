@@ -1,4 +1,20 @@
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+
+export const getWalletCategoryBackfillStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const categories = await ctx.db.query("categories").collect();
+    const customCategories = categories.filter((category) => !category.isDefault);
+    const pendingCategories = customCategories.filter((category) => !category.walletId);
+
+    return {
+      customCategoryCount: customCategories.length,
+      walletScopedCategoryCount: customCategories.filter((category) => !!category.walletId).length,
+      pendingCategoryCount: pendingCategories.length,
+    };
+  },
+});
 
 export const getTransactionBackfillStatus = query({
   args: {},
@@ -100,6 +116,144 @@ export const runTransactionBackfill = mutation({
       migratedExpenses,
       migratedIncomes,
       totalMigrated: migratedExpenses + migratedIncomes,
+    };
+  },
+});
+
+export const runWalletCategoryBackfill = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const categories = await ctx.db.query("categories").collect();
+    const transactions = await ctx.db.query("transactions").collect();
+    const expenses = await ctx.db.query("expenses").collect();
+
+    const pendingCategories = categories.filter((category) => !category.isDefault && !category.walletId);
+    const categoryById = new Map(categories.map((category) => [category._id, category]));
+    const categoryWalletMap = new Map<string, Id<"categories">>();
+
+    function collectWalletIds(categoryId: Id<"categories">) {
+      const walletIds = new Set<Id<"wallets">>();
+      for (const transaction of transactions) {
+        if (transaction.categoryId === categoryId && transaction.walletId) {
+          walletIds.add(transaction.walletId);
+        }
+      }
+      for (const expense of expenses) {
+        if (expense.categoryId === categoryId && expense.walletId) {
+          walletIds.add(expense.walletId);
+        }
+      }
+      return Array.from(walletIds);
+    }
+
+    async function ensureWalletScopedCategory(categoryId: Id<"categories">, walletId: Id<"wallets">) {
+      const mapKey = `${categoryId}:${walletId}`;
+      const cached = categoryWalletMap.get(mapKey);
+      if (cached) return cached;
+
+      const original = categoryById.get(categoryId);
+      if (!original) return null;
+
+      let resolvedParentId = original.parentId;
+      if (original.parentId) {
+        resolvedParentId = await ensureWalletScopedCategory(original.parentId, walletId) as typeof original.parentId;
+      }
+
+      const existingMatch = categories.find(
+        (category) =>
+          category.walletId === walletId &&
+          category.createdBy === original.createdBy &&
+          category.name.toLowerCase() === original.name.toLowerCase() &&
+          category.parentId === resolvedParentId
+      );
+
+      if (existingMatch) {
+        categoryWalletMap.set(mapKey, existingMatch._id);
+        return existingMatch._id;
+      }
+
+      const createdId = await ctx.db.insert("categories", {
+        createdBy: original.createdBy,
+        walletId,
+        name: original.name,
+        color: original.color,
+        icon: original.icon,
+        directionScope: original.directionScope,
+        isDefault: false,
+        isActive: original.isActive,
+        parentId: resolvedParentId,
+        createdAt: original.createdAt,
+      });
+
+      categoryWalletMap.set(mapKey, createdId);
+      return createdId;
+    }
+
+    let updatedTransactions = 0;
+    let updatedExpenses = 0;
+    let clonedCategories = 0;
+    let archivedCategories = 0;
+
+    const originalCategoryIds = new Set<Id<"categories">>(categories.map((category) => category._id));
+
+    for (const category of pendingCategories) {
+      const walletIds = collectWalletIds(category._id);
+
+      if (walletIds.length === 1) {
+        await ctx.db.patch(category._id, { walletId: walletIds[0] });
+        categoryWalletMap.set(`${category._id}:${walletIds[0]}`, category._id);
+        clonedCategories += 0;
+        continue;
+      }
+
+      if (walletIds.length === 0) {
+        continue;
+      }
+
+      for (const walletId of walletIds) {
+        const scopedCategoryId = await ensureWalletScopedCategory(category._id, walletId);
+        if (!scopedCategoryId) continue;
+
+        if (originalCategoryIds.has(scopedCategoryId)) {
+          continue;
+        }
+        clonedCategories += 1;
+      }
+
+      await ctx.db.patch(category._id, { isActive: false });
+      archivedCategories += 1;
+    }
+
+    for (const transaction of transactions) {
+      if (!transaction.categoryId || !transaction.walletId) continue;
+      const category = categoryById.get(transaction.categoryId);
+      if (!category || category.isDefault || category.walletId) continue;
+
+      const scopedCategoryId = await ensureWalletScopedCategory(transaction.categoryId, transaction.walletId);
+      if (!scopedCategoryId || scopedCategoryId === transaction.categoryId) continue;
+
+      await ctx.db.patch(transaction._id, { categoryId: scopedCategoryId });
+      updatedTransactions += 1;
+    }
+
+    for (const expense of expenses) {
+      if (!expense.categoryId || !expense.walletId) continue;
+      const category = categoryById.get(expense.categoryId);
+      if (!category || category.isDefault || category.walletId) continue;
+
+      const scopedCategoryId = await ensureWalletScopedCategory(expense.categoryId, expense.walletId);
+      if (!scopedCategoryId || scopedCategoryId === expense.categoryId) continue;
+
+      await ctx.db.patch(expense._id, { categoryId: scopedCategoryId });
+      updatedExpenses += 1;
+    }
+
+    return {
+      pendingCategoryCount: pendingCategories.length,
+      clonedCategories,
+      archivedCategories,
+      updatedTransactions,
+      updatedExpenses,
     };
   },
 });

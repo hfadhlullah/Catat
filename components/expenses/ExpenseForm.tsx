@@ -90,7 +90,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const fileRef = useRef<HTMLInputElement>(null);
   const initializedExpenseRef = useRef<string | null>(null);
 
-  const categories = useQuery(api.categories.listCategories);
   const wallets = useQuery(api.wallets.listWallets);
   const vendors = useQuery(api.vendors.listVendors);
   const createExpense = useMutation(api.transactions.createTransaction);
@@ -140,6 +139,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const selectedCategoryId = useWatch({ control, name: "categoryId" });
   const selectedWalletId = useWatch({ control, name: "walletId" });
   const selectedVendorId = useWatch({ control, name: "vendorId" });
+  const categories = useQuery(api.categories.listCategories, selectedWalletId ? { walletId: selectedWalletId as Id<"wallets"> } : "skip");
   const installmentCount = useWatch({ control, name: "installmentCount" }) ?? 1;
   const installmentRate = useWatch({ control, name: "installmentRate" }) ?? 0;
   const amountValue = useWatch({ control, name: "amount" }) ?? 0;
@@ -221,6 +221,30 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       setValue("installmentCount", 1);
       setValue("installmentRate", 0);
     }
+  }
+
+  function handleWalletChange(walletId: string) {
+    setValue("walletId", walletId, { shouldValidate: true });
+    setValue("categoryId", undefined, { shouldValidate: true });
+    setSheetPrimaryId(null);
+  }
+
+  function handleOpenAddCategory() {
+    if (!selectedWalletId) {
+      toast.error("Pilih wallet dulu sebelum menambah kategori");
+      return;
+    }
+    setAddCategoryOpen(true);
+    setCategorySheetOpen(false);
+  }
+
+  function handleOpenCategorySheet() {
+    if (!selectedWalletId) {
+      toast.error("Pilih wallet dulu sebelum memilih kategori");
+      return;
+    }
+    setSheetPrimaryId(null);
+    setCategorySheetOpen(true);
   }
 
   async function uploadPhoto(file: File): Promise<string> {
@@ -448,15 +472,14 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
           {/* Category icon */}
           <button
             type="button"
-            onClick={() => {
-              setSheetPrimaryId(null);
-              setCategorySheetOpen(true);
-            }}
+            onClick={handleOpenCategorySheet}
             className={cn(
               "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-3xl transition-colors",
               selectedCategory
                 ? "border border-primary/20 bg-primary/10"
-                : "border border-border bg-muted/60 hover:bg-muted"
+                : selectedWalletId
+                  ? "border border-border bg-muted/60 hover:bg-muted"
+                  : "border border-border bg-muted/40 text-muted-foreground/60"
             )}
             aria-label="Pilih kategori"
           >
@@ -667,7 +690,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
               <button
                 key={wallet._id}
                 type="button"
-                onClick={() => setValue("walletId", wallet._id, { shouldValidate: true })}
+                onClick={() => handleWalletChange(wallet._id)}
                 className={cn(
                   "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                   active
@@ -974,14 +997,11 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
                   </button>
                 );
               })}
-              <button
-                type="button"
-                onClick={() => {
-                  setAddCategoryOpen(true);
-                  setCategorySheetOpen(false);
-                }}
-                className="rounded-2xl border border-dashed border-border p-3 text-center text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-              >
+                <button
+                  type="button"
+                  onClick={handleOpenAddCategory}
+                  className="rounded-2xl border border-dashed border-border p-3 text-center text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                >
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-2xl">+</div>
                 <p className="mt-2 text-xs font-medium">Tambah</p>
               </button>
@@ -1106,13 +1126,14 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         </SheetContent>
       </Sheet>
 
-      <CategoryAddSheet
-        open={addCategoryOpen}
-        onOpenChange={setAddCategoryOpen}
-        defaultDirection={direction}
-        onCreated={(id) => {
-          setValue("categoryId", id, { shouldValidate: true });
-        }}
+        <CategoryAddSheet
+          open={addCategoryOpen}
+          onOpenChange={setAddCategoryOpen}
+          defaultDirection={direction}
+          walletId={selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined}
+          onCreated={(id) => {
+            setValue("categoryId", id, { shouldValidate: true });
+          }}
       />
     </form>
   );
