@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import Image from "next/image";
 import { api } from "@/convex/_generated/api";
@@ -23,9 +23,28 @@ export default function ExpensesPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const wallets = useQuery(api.wallets.listWallets);
-  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
-  const [directionFilter, setDirectionFilter] = useState<"all" | "expense" | "income">("all");
+  const [selectedWalletId, setSelectedWalletId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("expenses_selectedWalletId") ?? "";
+    }
+    return "";
+  });
+  const [directionFilter, setDirectionFilter] = useState<"all" | "expense" | "income">(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("expenses_directionFilter");
+      if (saved === "expense" || saved === "income" || saved === "all") return saved;
+    }
+    return "all";
+  });
   const effectiveSelectedWalletId = selectedWalletId || wallets?.[0]?._id || "";
+
+  useEffect(() => {
+    sessionStorage.setItem("expenses_selectedWalletId", selectedWalletId);
+  }, [selectedWalletId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("expenses_directionFilter", directionFilter);
+  }, [directionFilter]);
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.transactions.listTransactions,

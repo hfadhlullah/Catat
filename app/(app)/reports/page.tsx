@@ -20,8 +20,6 @@ import {
   ResponsiveContainer,
   Cell,
   CartesianGrid,
-  PieChart,
-  Pie,
 } from "recharts";
 
 const COLORS = [

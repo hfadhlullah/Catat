@@ -155,46 +155,49 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   }, [ensureDefaultCategories]);
 
   useEffect(() => {
-    if (mode !== "edit" || !initialExpense) return;
-    if (initializedExpenseRef.current === initialExpense._id) return;
+    function initializeFromExpense() {
+      if (mode !== "edit" || !initialExpense) return;
+      if (initializedExpenseRef.current === initialExpense._id) return;
 
-    const isInstallment = (initialExpense.installmentCount ?? 1) > 1;
-    const currentDirection = initialExpense.direction ?? "expense";
-    setDirection(currentDirection);
-    setTransactionType(initialExpense.transactionType ?? "default");
-    setShowMoreOptions(
-      Boolean(initialExpense.vendorId) ||
-      Boolean(initialExpense.notes) ||
-      isInstallment
-    );
-    // Derive repeat settings from saved installmentCount for old data
-    if (isInstallment) {
-      setRepeatEvery(1);
-      setRepeatPeriod("month");
-      setRepeatUntil(null);
-    } else {
-      setRepeatEvery(1);
-      setRepeatPeriod("month");
-      setRepeatUntil(null);
+      const isInstallment = (initialExpense.installmentCount ?? 1) > 1;
+      const currentDirection = initialExpense.direction ?? "expense";
+      setDirection(currentDirection);
+      setTransactionType(initialExpense.transactionType ?? "default");
+      setShowMoreOptions(
+        Boolean(initialExpense.vendorId) ||
+        Boolean(initialExpense.notes) ||
+        isInstallment
+      );
+      // Derive repeat settings from saved installmentCount for old data
+      if (isInstallment) {
+        setRepeatEvery(1);
+        setRepeatPeriod("month");
+        setRepeatUntil(null);
+      } else {
+        setRepeatEvery(1);
+        setRepeatPeriod("month");
+        setRepeatUntil(null);
+      }
+
+      reset({
+        amount: initialExpense.amount,
+        installmentCount: isInstallment ? (initialExpense.installmentCount ?? 1) : 1,
+        installmentRate: isInstallment ? (initialExpense.installmentRate ?? 0) : 0,
+        description: initialExpense.description,
+        date: new Date(initialExpense.date),
+        categoryId: initialExpense.categoryId,
+        walletId: initialExpense.walletId ?? "",
+        vendorId: initialExpense.vendorId,
+        notes: initialExpense.notes ?? "",
+        transactionType: initialExpense.transactionType ?? "default",
+      });
+      setAmountDisplay(formatRupiah(String(initialExpense.amount)));
+      setPhoto(null);
+      setPhotoPreview(initialExpense.receiptUrl ?? null);
+      setStorageId(initialExpense.receiptStorageId ?? null);
+      initializedExpenseRef.current = initialExpense._id;
     }
-
-    reset({
-      amount: initialExpense.amount,
-      installmentCount: isInstallment ? (initialExpense.installmentCount ?? 1) : 1,
-      installmentRate: isInstallment ? (initialExpense.installmentRate ?? 0) : 0,
-      description: initialExpense.description,
-      date: new Date(initialExpense.date),
-      categoryId: initialExpense.categoryId,
-      walletId: initialExpense.walletId ?? "",
-      vendorId: initialExpense.vendorId,
-      notes: initialExpense.notes ?? "",
-      transactionType: initialExpense.transactionType ?? "default",
-    });
-    setAmountDisplay(formatRupiah(String(initialExpense.amount)));
-    setPhoto(null);
-    setPhotoPreview(initialExpense.receiptUrl ?? null);
-    setStorageId(initialExpense.receiptStorageId ?? null);
-    initializedExpenseRef.current = initialExpense._id;
+    initializeFromExpense();
   }, [initialExpense, mode, reset]);
 
   useEffect(() => {

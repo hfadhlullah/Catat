@@ -3,8 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
-import { CalendarIcon, ChevronDown, Pencil, Plus, Trash2, Users, UserPlus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, Users, UserPlus, X } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -26,11 +25,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useMobile } from "@/hooks/use-mobile";
 
 const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
 
@@ -149,7 +145,6 @@ export default function WalletsPage() {
   const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
   const [walletLabel, setWalletLabel] = useState("");
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
-  const isMobile = useMobile();
   const [budgetAmountInput, setBudgetAmountInput] = useState("");
   const [budgetAmountInputWalletId, setBudgetAmountInputWalletId] = useState("");
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
