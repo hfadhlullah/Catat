@@ -7,6 +7,7 @@ export type TransactionType =
   | "borrowed";
 
 export type RepeatPeriod = "day" | "week" | "biweekly" | "month" | "quarterly" | "year";
+export type SplitMode = "equal" | "custom";
 
 export type SplitParticipant = {
   id: string;
@@ -16,6 +17,8 @@ export type SplitParticipant = {
   isPaid: boolean;
   paidAt?: number;
 };
+
+export type DisplaySplitParticipant = SplitParticipant;
 
 export const expenseCardShadow =
   "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
