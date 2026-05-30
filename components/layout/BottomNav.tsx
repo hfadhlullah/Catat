@@ -47,7 +47,7 @@ export function BottomNav() {
   if (isTransactionForm) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-6">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 px-2 pb-4">
       <div className="mx-auto grid max-w-lg grid-cols-[1fr_auto_1fr] items-center rounded-2xl border border-border/70 bg-card/95 px-2 py-2.5 shadow-lg backdrop-blur-md">
         <div className="flex items-center justify-evenly">
           {leftItems.map((item) => (
