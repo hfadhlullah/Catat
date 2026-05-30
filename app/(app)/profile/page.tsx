@@ -17,8 +17,15 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 import { toast } from "sonner";
@@ -285,8 +292,8 @@ export default function ProfilePage() {
                   </span>
                 </div>
               </div>
-              <Dialog open={isEditOpen} onOpenChange={handleEditOpenChange}>
-                <DialogTrigger asChild>
+              <Sheet open={isEditOpen} onOpenChange={handleEditOpenChange}>
+                <SheetTrigger asChild>
                   <button
                     type="button"
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
@@ -294,15 +301,15 @@ export default function ProfilePage() {
                   >
                     <PencilLine className="h-4 w-4" />
                   </button>
-                </DialogTrigger>
-                <DialogContent className="border-border bg-popover text-popover-foreground sm:rounded-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Edit profil</DialogTitle>
-                    <DialogDescription className="text-muted-foreground">
+                </SheetTrigger>
+                <SheetContent side="bottom" className="sheet-bottom rounded-t-2xl max-h-[85vh] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Edit profil</SheetTitle>
+                    <SheetDescription className="text-muted-foreground">
                       Ubah nama dan bio yang tampil di akun aktif.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleProfileSubmit} className="space-y-4">
+                    </SheetDescription>
+                  </SheetHeader>
+                  <form onSubmit={handleProfileSubmit} className="space-y-4 mt-4">
                     <div className="space-y-2">
                       <label htmlFor="name" className="text-sm text-foreground">Nama</label>
                       <Input
@@ -333,8 +340,8 @@ export default function ProfilePage() {
                       {isSavingProfile ? "Menyimpan..." : "Simpan perubahan"}
                     </Button>
                   </form>
-                </DialogContent>
-              </Dialog>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
 
@@ -343,8 +350,8 @@ export default function ProfilePage() {
             <DetailRow icon={Mail} label="Email" value={profile.email} />
             <DetailRow icon={PencilLine} label="Bio" value={profile.bio?.trim() ? profile.bio : "Belum ada bio"} />
             <DetailRow icon={Shield} label="Peran" value={profile.role === "owner" ? "Owner" : "Admin"} />
-            <Dialog open={isPasswordOpen} onOpenChange={handlePasswordOpenChange}>
-              <DialogTrigger asChild>
+            <Sheet open={isPasswordOpen} onOpenChange={handlePasswordOpenChange}>
+              <SheetTrigger asChild>
                 <button
                   type="button"
                   className="flex w-full items-center justify-between rounded-2xl border border-border bg-muted/50 px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/50"
@@ -360,15 +367,15 @@ export default function ProfilePage() {
                   </div>
                   <span className="text-xs text-muted-foreground">Update</span>
                 </button>
-              </DialogTrigger>
-              <DialogContent className="border-border bg-popover text-popover-foreground sm:rounded-2xl">
-                <DialogHeader>
-                  <DialogTitle>Ganti password</DialogTitle>
-                  <DialogDescription className="text-muted-foreground">
+              </SheetTrigger>
+              <SheetContent side="bottom" className="sheet-bottom rounded-t-2xl max-h-[85vh] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Ganti password</SheetTitle>
+                  <SheetDescription className="text-muted-foreground">
                     Masukkan password saat ini lalu buat password baru minimal 8 karakter.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                  </SheetDescription>
+                </SheetHeader>
+                <form onSubmit={handlePasswordSubmit} className="space-y-4 mt-4">
                   <div className="space-y-2">
                     <label htmlFor="current-password" className="text-sm text-foreground">Password saat ini</label>
                     <Input
@@ -415,8 +422,8 @@ export default function ProfilePage() {
                     {isSavingPassword ? "Menyimpan..." : "Perbarui password"}
                   </Button>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </SheetContent>
+            </Sheet>
 
             <Button
               type="button"
@@ -449,8 +456,8 @@ export default function ProfilePage() {
               </div>
             </div>
             {ownedWallets && ownedWallets.length > 0 && (
-              <Dialog open={familyInviteOpen} onOpenChange={setFamilyInviteOpen}>
-                <DialogTrigger asChild>
+              <Sheet open={familyInviteOpen} onOpenChange={setFamilyInviteOpen}>
+                <SheetTrigger asChild>
                   <button
                     type="button"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
@@ -458,15 +465,15 @@ export default function ProfilePage() {
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                </DialogTrigger>
-              <DialogContent className="border-border bg-popover text-popover-foreground sm:rounded-2xl">
-                <DialogHeader>
-                  <DialogTitle>Undang Anggota Keluarga</DialogTitle>
-                  <DialogDescription className="text-muted-foreground">
+                </SheetTrigger>
+              <SheetContent side="bottom" className="sheet-bottom rounded-t-2xl max-h-[85vh] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Undang Anggota Keluarga</SheetTitle>
+                  <SheetDescription className="text-muted-foreground">
                     Masukkan email dan pilih wallet yang ingin dibagikan.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleFamilyInvite} className="space-y-4">
+                  </SheetDescription>
+                </SheetHeader>
+                <form onSubmit={handleFamilyInvite} className="space-y-4 mt-4">
                   <div className="space-y-2">
                     <label htmlFor="family-email" className="text-sm text-foreground">Email</label>
                     <Input
@@ -542,8 +549,8 @@ export default function ProfilePage() {
                     {sendingFamilyInvite ? "Mengirim..." : "Kirim Undangan"}
                   </Button>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </SheetContent>
+            </Sheet>
             )}
           </div>
         </div>

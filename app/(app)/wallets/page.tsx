@@ -17,8 +17,15 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -365,8 +372,8 @@ export default function WalletsPage() {
           <span className="text-sm text-muted-foreground">Saldo, pemasukan, dan budget bulanan</span>
         </div>
 
-        <Dialog open={walletDialogOpen} onOpenChange={setWalletDialogOpen}>
-          <DialogTrigger asChild>
+        <Sheet open={walletDialogOpen} onOpenChange={setWalletDialogOpen}>
+          <SheetTrigger asChild>
             <button
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90"
@@ -374,19 +381,19 @@ export default function WalletsPage() {
             >
               <Plus className="h-5 w-5" />
             </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md border-border bg-card text-card-foreground overflow-hidden sm:rounded-2xl">
-            <DialogHeader>
-              <DialogTitle>Tambah Wallet</DialogTitle>
-              <DialogDescription>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="sheet-bottom rounded-t-2xl max-h-[85vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Tambah Wallet</SheetTitle>
+              <SheetDescription>
                 Tambahkan sumber dana baru seperti bank, cash, atau e-wallet.
-              </DialogDescription>
-            </DialogHeader>
+              </SheetDescription>
+            </SheetHeader>
 
-            <form onSubmit={handleCreateWallet} className="space-y-3">
+            <form onSubmit={handleCreateWallet} className="space-y-3 mt-4">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Wallet</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 max-h-[40vh] overflow-y-auto">
                   {WALLET_OPTIONS.map((bank) => (
                     <button
                       key={bank.logo}
@@ -432,22 +439,22 @@ export default function WalletsPage() {
                 {savingWallet ? "Menyimpan..." : "Simpan Wallet"}
               </button>
             </form>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
 
-        <Dialog open={editWalletDialogOpen} onOpenChange={setEditWalletDialogOpen}>
-          <DialogContent className="max-w-md border-border bg-card text-card-foreground overflow-hidden sm:rounded-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit Wallet</DialogTitle>
-              <DialogDescription>
+        <Sheet open={editWalletDialogOpen} onOpenChange={setEditWalletDialogOpen}>
+          <SheetContent side="bottom" className="sheet-bottom rounded-t-2xl max-h-[85vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Edit Wallet</SheetTitle>
+              <SheetDescription>
                 Ganti bank atau sumber dana wallet ini.
-              </DialogDescription>
-            </DialogHeader>
+              </SheetDescription>
+            </SheetHeader>
 
-            <form onSubmit={handleEditWallet} className="space-y-3">
+            <form onSubmit={handleEditWallet} className="space-y-3 mt-4">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Pilih Wallet</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 max-h-[40vh] overflow-y-auto">
                   {WALLET_OPTIONS.map((bank) => (
                     <button
                       key={bank.logo}
@@ -486,8 +493,8 @@ export default function WalletsPage() {
                 {savingEdit ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
             </form>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
 
         <Dialog open={confirmDeleteWalletOpen} onOpenChange={setConfirmDeleteWalletOpen}>
           <DialogContent className="max-w-sm border-border bg-card text-card-foreground sm:rounded-2xl">
