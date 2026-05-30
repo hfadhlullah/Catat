@@ -54,6 +54,17 @@ export default defineSchema({
     submittedBy: v.id("userProfiles"),
     receiptStorageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
+    splitBill: v.optional(v.object({
+      enabled: v.boolean(),
+      mode: v.union(v.literal("equal"), v.literal("custom")),
+      participants: v.array(v.object({
+        userId: v.optional(v.id("userProfiles")),
+        name: v.string(),
+        amount: v.number(),
+        isPaid: v.optional(v.boolean()),
+        paidAt: v.optional(v.number()),
+      })),
+    })),
     importSource: v.optional(v.string()),
     importFingerprint: v.optional(v.string()),
     legacyExpenseId: v.optional(v.id("expenses")),

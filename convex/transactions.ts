@@ -6,6 +6,18 @@ import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { getAccessibleProfileIds, getCurrentProfile } from "./profile";
 
+const splitBillValidator = v.object({
+  enabled: v.boolean(),
+  mode: v.union(v.literal("equal"), v.literal("custom")),
+  participants: v.array(v.object({
+    userId: v.optional(v.id("userProfiles")),
+    name: v.string(),
+    amount: v.number(),
+    isPaid: v.optional(v.boolean()),
+    paidAt: v.optional(v.number()),
+  })),
+});
+
 async function hasWalletAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
   const wallet = await ctx.db.get(walletId);
   if (!wallet || !wallet.isActive) return false;
@@ -93,11 +105,23 @@ async function validateTransactionPayload(
   args: {
     direction: "expense" | "income";
     transactionType: string;
+    amount: number;
     categoryId?: Id<"categories">;
     walletId: Id<"wallets">;
     vendorId?: Id<"vendors">;
     installmentCount?: number;
     installmentRate?: number;
+    splitBill?: {
+      enabled: boolean;
+      mode: "equal" | "custom";
+      participants: Array<{
+        userId?: Id<"userProfiles">;
+        name: string;
+        amount: number;
+        isPaid?: boolean;
+        paidAt?: number;
+      }>;
+    };
   }
 ) {
   const accessibleIds = await getAccessibleProfileIds(ctx, profileId);
@@ -159,6 +183,48 @@ async function validateTransactionPayload(
     if (args.installmentRate !== undefined && args.installmentRate < 0) {
       throw new ConvexError("Bunga cicilan tidak boleh negatif");
     }
+
+    if (args.splitBill?.enabled) {
+      const seen = new Set<string>();
+      const participants = args.splitBill.participants;
+
+      if (participants.length < 2) {
+        throw new ConvexError("Split bill minimal 2 peserta");
+      }
+
+      if (args.splitBill.mode === "equal" && Math.round(args.amount) < participants.length) {
+        throw new ConvexError("Jumlah transaksi terlalu kecil untuk split rata");
+      }
+
+      let total = 0;
+      for (const participant of participants) {
+        const normalizedName = participant.name.trim().toLowerCase();
+        const dedupeKey = participant.userId ? `user:${String(participant.userId)}` : `name:${normalizedName}`;
+
+        if (seen.has(dedupeKey)) {
+          throw new ConvexError("Peserta split bill duplikat");
+        }
+        seen.add(dedupeKey);
+
+        if (!participant.userId && !normalizedName) {
+          throw new ConvexError("Nama peserta split bill wajib diisi");
+        }
+
+        if (!Number.isInteger(participant.amount) || participant.amount < 1) {
+          throw new ConvexError("Nominal split bill tidak valid");
+        }
+
+        if (participant.paidAt !== undefined && !participant.isPaid) {
+          throw new ConvexError("Status bayar split bill tidak valid");
+        }
+
+        total += participant.amount;
+      }
+
+      if (total !== Math.round(args.amount)) {
+        throw new ConvexError("Total split bill harus sama dengan jumlah transaksi");
+      }
+    }
   } else {
     if (args.installmentCount && args.installmentCount > 1) {
       throw new ConvexError("Pemasukan tidak mendukung cicilan");
@@ -166,7 +232,64 @@ async function validateTransactionPayload(
     if (args.installmentRate && args.installmentRate > 0) {
       throw new ConvexError("Pemasukan tidak mendukung bunga cicilan");
     }
+    if (args.splitBill?.enabled) {
+      throw new ConvexError("Split bill hanya untuk pengeluaran");
+    }
   }
+}
+
+function normalizeSplitBill(
+  amount: number,
+  splitBill:
+    | {
+        enabled: boolean;
+        mode: "equal" | "custom";
+        participants: Array<{
+          userId?: Id<"userProfiles">;
+          name: string;
+          amount: number;
+          isPaid?: boolean;
+          paidAt?: number;
+        }>;
+      }
+    | undefined
+) {
+  if (!splitBill?.enabled) {
+    return undefined;
+  }
+
+  const normalizedAmount = Math.round(amount);
+  const participants = splitBill.participants.map((participant) => ({
+    userId: participant.userId,
+    name: participant.name.trim(),
+    amount: Math.round(participant.amount),
+    isPaid: participant.isPaid ? true : undefined,
+    paidAt: participant.isPaid ? (participant.paidAt ?? Date.now()) : undefined,
+  }));
+
+  if (splitBill.mode === "equal") {
+    const baseAmount = Math.floor(normalizedAmount / participants.length);
+    let remainder = normalizedAmount - baseAmount * participants.length;
+
+    return {
+      enabled: true,
+      mode: splitBill.mode,
+      participants: participants.map((participant) => {
+        const nextAmount = baseAmount + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder -= 1;
+        return {
+          ...participant,
+          amount: nextAmount,
+        };
+      }),
+    };
+  }
+
+  return {
+    enabled: true,
+    mode: splitBill.mode,
+    participants,
+  };
 }
 
 function monthRange(period: string) {
@@ -232,11 +355,13 @@ export const createTransaction = mutation({
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
+    splitBill: v.optional(splitBillValidator),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
-    await validateTransactionPayload(ctx, profile._id, args);
     const receipt = await validateReceiptOwnership(ctx, profile._id, args.receiptStorageId);
+    const splitBill = normalizeSplitBill(args.amount, args.splitBill);
+    await validateTransactionPayload(ctx, profile._id, { ...args, splitBill });
 
     const now = Date.now();
     const transactionId = await ctx.db.insert("transactions", {
@@ -253,6 +378,7 @@ export const createTransaction = mutation({
       submittedBy: profile._id,
       receiptStorageId: args.direction === "expense" ? args.receiptStorageId : undefined,
       notes: args.notes,
+      splitBill,
       createdAt: now,
       updatedAt: now,
     });
@@ -310,6 +436,7 @@ export const updateTransaction = mutation({
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
+    splitBill: v.optional(splitBillValidator),
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
@@ -317,7 +444,8 @@ export const updateTransaction = mutation({
     if (!transaction) throw new ConvexError("Not found");
     if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
 
-    await validateTransactionPayload(ctx, profile._id, args);
+    const splitBill = normalizeSplitBill(args.amount, args.splitBill);
+    await validateTransactionPayload(ctx, profile._id, { ...args, splitBill });
     const receipt = await validateReceiptOwnership(ctx, profile._id, args.receiptStorageId, {
       allowMissingForExistingTransactionId: transaction._id,
     });
@@ -337,6 +465,7 @@ export const updateTransaction = mutation({
       vendorId: args.direction === "expense" ? args.vendorId : undefined,
       notes: args.notes,
       receiptStorageId: args.direction === "expense" ? args.receiptStorageId : undefined,
+      splitBill,
       updatedAt: Date.now(),
     });
 

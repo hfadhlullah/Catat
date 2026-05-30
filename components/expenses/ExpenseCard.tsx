@@ -31,6 +31,16 @@ interface ExpenseCardProps {
     receiptUrl?: string | null;
     submitterName?: string;
     isOwn?: boolean;
+    splitBill?: {
+      enabled: boolean;
+      mode: "equal" | "custom";
+      participants: Array<{
+        userId?: string;
+        name: string;
+        amount: number;
+        isPaid?: boolean;
+      }>;
+    };
   };
 }
 
@@ -41,6 +51,8 @@ function CardContent({ expense }: { expense: ExpenseCardProps["expense"] }) {
   const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
   const isExpense = expense.direction === "expense";
   const canEdit = expense.isOwn !== false;
+  const splitParticipantCount = expense.splitBill?.participants.length ?? 0;
+  const splitPaidCount = expense.splitBill?.participants.filter((participant) => participant.isPaid).length ?? 0;
 
   return (
     <div className={cn(
@@ -92,6 +104,11 @@ function CardContent({ expense }: { expense: ExpenseCardProps["expense"] }) {
           {isExpense && installmentCount > 1 && (
             <span className="text-xs text-muted-foreground">
               {installmentCount}x • {installmentRate}% • {formatIDR(perInstallment)}/cicilan
+            </span>
+          )}
+          {expense.splitBill?.enabled && splitParticipantCount > 0 && (
+            <span className="text-xs text-muted-foreground">
+              Split {splitParticipantCount} orang{splitParticipantCount > 0 ? ` • ${splitPaidCount}/${splitParticipantCount} paid` : ""}
             </span>
           )}
         </div>
