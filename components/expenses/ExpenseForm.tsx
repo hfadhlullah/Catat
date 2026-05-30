@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { useMobile } from "@/hooks/use-mobile";
 
 const schema = z.object({
   amount: z.number().min(1, "Masukkan jumlah"),
@@ -100,7 +101,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const [showNewVendor, setShowNewVendor] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [hasInstallment, setHasInstallment] = useState(false);
 
   const {
@@ -115,6 +115,8 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     defaultValues: { date: new Date(), installmentCount: 1, installmentRate: 0 },
   });
 
+  const isMobile = useMobile();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const selectedDate = useWatch({ control, name: "date" });
   const selectedCategoryId = useWatch({ control, name: "categoryId" });
   const selectedWalletId = useWatch({ control, name: "walletId" });
@@ -577,29 +579,46 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         {/* Date */}
         <div className="p-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tanggal</p>
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
-              >
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-                <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d: Date | undefined) => {
-                  if (!d) return;
-                  setValue("date", d);
-                  setDatePickerOpen(false);
+          {isMobile ? (
+            <label className="relative flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer">
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+              <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="date"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                value={format(selectedDate, "yyyy-MM-dd")}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  setValue("date", new Date(e.target.value + "T00:00:00"));
                 }}
               />
-            </PopoverContent>
-          </Popover>
+            </label>
+          ) : (
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+                  <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(d: Date | undefined) => {
+                    if (!d) return;
+                    setValue("date", d);
+                    setDatePickerOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
         {/* Description */}

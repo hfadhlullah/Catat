@@ -30,6 +30,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useMobile } from "@/hooks/use-mobile";
 
 const cardShadow = "rounded-2xl border border-border bg-card p-4 shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]";
 
@@ -155,6 +156,7 @@ export default function WalletsPage() {
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
   const [incomeDescription, setIncomeDescription] = useState("");
   const [incomeAmountInput, setIncomeAmountInput] = useState("");
+  const isMobile = useMobile();
   const [incomeDate, setIncomeDate] = useState(new Date());
   const [incomeDatePickerOpen, setIncomeDatePickerOpen] = useState(false);
   const [budgetAmountInput, setBudgetAmountInput] = useState("");
@@ -791,29 +793,46 @@ export default function WalletsPage() {
           />
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <Popover open={incomeDatePickerOpen} onOpenChange={setIncomeDatePickerOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/30"
-              >
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                {format(incomeDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-                <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={incomeDate}
-                onSelect={(date) => {
-                  if (!date) return;
-                  setIncomeDate(date);
-                  setIncomeDatePickerOpen(false);
+          {isMobile ? (
+            <label className="relative flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/30 cursor-pointer">
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              {format(incomeDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+              <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="date"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                value={format(incomeDate, "yyyy-MM-dd")}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  setIncomeDate(new Date(e.target.value + "T00:00:00"));
                 }}
               />
-            </PopoverContent>
-          </Popover>
+            </label>
+          ) : (
+            <Popover open={incomeDatePickerOpen} onOpenChange={setIncomeDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/30"
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  {format(incomeDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+                  <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={incomeDate}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    setIncomeDate(date);
+                    setIncomeDatePickerOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
           <button
             type="submit"
             disabled={savingIncome}

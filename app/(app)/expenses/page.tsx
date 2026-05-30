@@ -16,8 +16,10 @@ import { id as idLocale } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
+import { useMobile } from "@/hooks/use-mobile";
 
 export default function ExpensesPage() {
+  const isMobile = useMobile();
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const wallets = useQuery(api.wallets.listWallets);
@@ -52,13 +54,6 @@ export default function ExpensesPage() {
     return "Semua tanggal";
   }
 
-  function handleFilterOpenChange(nextOpen: boolean) {
-    if (!nextOpen && dateRange?.from && !dateRange?.to) {
-      return;
-    }
-
-    setFilterOpen(nextOpen);
-  }
 
   return (
     <div className="relative p-4 max-w-lg mx-auto space-y-5">
@@ -145,36 +140,71 @@ export default function ExpensesPage() {
           )}
         </div>
 
-        <Popover open={filterOpen} onOpenChange={handleFilterOpenChange}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
-                hasDateFilter
-                  ? "border-primary/40 bg-primary/10 text-foreground"
-                  : "border-border bg-background/70 text-foreground hover:border-primary/30"
-              )}
-            >
-              <span className="truncate">{getDateFilterLabel()}</span>
-              <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto border-border bg-popover p-0 text-popover-foreground">
-            <Calendar
-              mode="range"
-              min={1}
-              selected={dateRange}
-              onSelect={(range) => {
-                setDateRange(range);
-                if (range?.from && range?.to) setFilterOpen(false);
+        {isMobile ? (
+          <div className={cn(
+            "flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors",
+            hasDateFilter
+              ? "border-primary/40 bg-primary/10 text-foreground"
+              : "border-border bg-background/70 text-foreground"
+          )}>
+            <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <input
+              type="date"
+              className="flex-1 bg-transparent outline-none text-sm text-foreground"
+              value={dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateRange((prev) => ({ from: val ? new Date(val + "T00:00:00") : undefined, to: prev?.to }));
               }}
-              locale={idLocale}
-              numberOfMonths={1}
-              className="bg-popover"
             />
-          </PopoverContent>
-        </Popover>
+            <span className="text-muted-foreground">–</span>
+            <input
+              type="date"
+              className="flex-1 bg-transparent outline-none text-sm text-foreground"
+              value={dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateRange((prev) => ({ from: prev?.from, to: val ? new Date(val + "T00:00:00") : undefined }));
+              }}
+            />
+            {hasDateFilter && (
+              <button type="button" onClick={() => setDateRange(undefined)} className="text-muted-foreground hover:text-foreground">
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                  hasDateFilter
+                    ? "border-primary/40 bg-primary/10 text-foreground"
+                    : "border-border bg-background/70 text-foreground hover:border-primary/30"
+                )}
+              >
+                <span className="truncate">{getDateFilterLabel()}</span>
+                <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto border-border bg-popover p-0 text-popover-foreground">
+              <Calendar
+                mode="range"
+                min={1}
+                selected={dateRange}
+                onSelect={(range) => {
+                  setDateRange(range);
+                  if (range?.from && range?.to) setFilterOpen(false);
+                }}
+                locale={idLocale}
+                numberOfMonths={1}
+                className="bg-popover"
+              />
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
 
       {status === "LoadingFirstPage" && (
