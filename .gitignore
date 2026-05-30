@@ -42,3 +42,5 @@ next-env.d.ts
 
 #low-fi
 /.lowfi/
+
+docs/
