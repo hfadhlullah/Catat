@@ -132,10 +132,6 @@ export default function WalletsPage() {
   const overview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const effectiveSelectedWalletId = selectedWalletId || overview?.wallets[0]?._id || "";
-  const incomes = useQuery(
-    api.incomes.listWalletIncomes,
-    effectiveSelectedWalletId ? { walletId: effectiveSelectedWalletId as Id<"wallets"> } : "skip"
-  );
 
   const members = useQuery(
     api.walletSharing.listMembers,
@@ -145,7 +141,6 @@ export default function WalletsPage() {
   const createWallet = useMutation(api.wallets.createWallet);
   const updateWallet = useMutation(api.wallets.updateWallet);
   const deleteWallet = useMutation(api.wallets.deleteWallet);
-  const createIncome = useMutation(api.incomes.createIncome);
   const upsertBudget = useMutation(api.walletBudgets.upsertWalletBudget);
   const deleteBudget = useMutation(api.walletBudgets.deleteWalletBudget);
   const inviteMember = useMutation(api.walletSharing.inviteMember);
@@ -154,11 +149,7 @@ export default function WalletsPage() {
   const [selectedBank, setSelectedBank] = useState<{ name: string; logo: string } | null>(null);
   const [walletLabel, setWalletLabel] = useState("");
   const [walletBalanceInput, setWalletBalanceInput] = useState("");
-  const [incomeDescription, setIncomeDescription] = useState("");
-  const [incomeAmountInput, setIncomeAmountInput] = useState("");
   const isMobile = useMobile();
-  const [incomeDate, setIncomeDate] = useState(new Date());
-  const [incomeDatePickerOpen, setIncomeDatePickerOpen] = useState(false);
   const [budgetAmountInput, setBudgetAmountInput] = useState("");
   const [budgetAmountInputWalletId, setBudgetAmountInputWalletId] = useState("");
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
@@ -167,7 +158,6 @@ export default function WalletsPage() {
   const [editLabel, setEditLabel] = useState("");
   const [savingWallet, setSavingWallet] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
-  const [savingIncome, setSavingIncome] = useState(false);
   const [savingBudget, setSavingBudget] = useState(false);
   const [deletingWallet, setDeletingWallet] = useState(false);
   const [deletingBudget, setDeletingBudget] = useState(false);
@@ -223,32 +213,6 @@ export default function WalletsPage() {
       toast.error(error instanceof Error ? error.message : "Gagal menambah wallet");
     } finally {
       setSavingWallet(false);
-    }
-  }
-
-  async function handleCreateIncome(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedWallet) {
-      toast.error("Pilih wallet dulu");
-      return;
-    }
-
-    setSavingIncome(true);
-    try {
-      await createIncome({
-        walletId: selectedWallet._id as Id<"wallets">,
-        amount: parseAmount(incomeAmountInput),
-        description: incomeDescription.trim(),
-        date: incomeDate.getTime(),
-      });
-      setIncomeDescription("");
-      setIncomeAmountInput("");
-      setIncomeDate(new Date());
-      toast.success("Pemasukan ditambahkan");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Gagal menambah pemasukan");
-    } finally {
-      setSavingIncome(false);
     }
   }
 
@@ -768,81 +732,6 @@ export default function WalletsPage() {
         )}
       </div>
 
-      <form onSubmit={handleCreateIncome} className={cn(cardShadow, "space-y-3")}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tambah Income</p>
-          <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-            {selectedWallet?.label || selectedWallet?.name || "Pilih wallet"}
-          </span>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10.5rem]">
-          <input
-            value={incomeDescription}
-            onChange={(e) => setIncomeDescription(e.target.value)}
-            placeholder="Deskripsi income"
-            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            required
-          />
-          <input
-            value={incomeAmountInput}
-            onChange={(e) => setIncomeAmountInput(formatAmountInput(e.target.value))}
-            placeholder="Jumlah"
-            inputMode="numeric"
-            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            required
-          />
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          {isMobile ? (
-            <label className="relative flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/30 cursor-pointer">
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-              {format(incomeDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-              <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="date"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                value={format(incomeDate, "yyyy-MM-dd")}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setIncomeDate(new Date(e.target.value + "T00:00:00"));
-                }}
-              />
-            </label>
-          ) : (
-            <Popover open={incomeDatePickerOpen} onOpenChange={setIncomeDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:border-primary/30"
-                >
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  {format(incomeDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-                  <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={incomeDate}
-                  onSelect={(date) => {
-                    if (!date) return;
-                    setIncomeDate(date);
-                    setIncomeDatePickerOpen(false);
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-          <button
-            type="submit"
-            disabled={savingIncome}
-            className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50 sm:w-auto"
-          >
-            {savingIncome ? "Menyimpan..." : "Simpan"}
-          </button>
-        </div>
-      </form>
-
       <form onSubmit={handleSaveBudget} className={cn(cardShadow, "space-y-3")}>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Budget Wallet Bulan Ini</p>
@@ -872,35 +761,7 @@ export default function WalletsPage() {
         </div>
       </form>
 
-      <div className={cardShadow}>
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Income Terbaru</p>
-        {incomes === undefined ? (
-          <div className="mt-3 space-y-2">
-            {[...Array(3)].map((_, index) => <Skeleton key={index} className="h-14 bg-muted" />)}
-          </div>
-        ) : incomes.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Belum ada income.</p>
-        ) : (
-          <div className="mt-3 space-y-3">
-            {incomes.map((income) => (
-              <div key={income._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{income.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {format(new Date(income.date), "d MMM yyyy")}
-                      {income.receivedByName && currentProfile?._id !== income.receivedBy ? (
-                        <span className="ml-1 font-medium text-primary"> • {income.receivedByName}</span>
-                      ) : null}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">{formatIDR(income.amount)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+
     </div>
   );
 }

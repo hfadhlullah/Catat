@@ -201,28 +201,148 @@
   animation: wallet-slide-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes sheet-slide-up {
+@keyframes sheet-enter-bottom {
   from {
     transform: translateY(100%);
+    opacity: 0;
   }
   to {
     transform: translateY(0);
+    opacity: 1;
   }
 }
 
-@keyframes sheet-slide-down {
+@keyframes sheet-exit-bottom {
   from {
     transform: translateY(0);
+    opacity: 1;
   }
   to {
     transform: translateY(100%);
+    opacity: 0;
   }
 }
 
-.sheet-bottom[data-state="open"] {
-  animation: sheet-slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+@keyframes sheet-enter-top {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.sheet-bottom[data-state="closed"] {
-  animation: sheet-slide-down 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+@keyframes sheet-exit-top {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-enter-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-exit-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-enter-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-exit-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-overlay-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-overlay-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Bottom */
+[data-side="bottom"][data-state="open"] {
+  animation: sheet-enter-bottom 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+[data-side="bottom"][data-state="closed"] {
+  animation: sheet-exit-bottom 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Top */
+[data-side="top"][data-state="open"] {
+  animation: sheet-enter-top 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+[data-side="top"][data-state="closed"] {
+  animation: sheet-exit-top 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Left */
+[data-side="left"][data-state="open"] {
+  animation: sheet-enter-left 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+[data-side="left"][data-state="closed"] {
+  animation: sheet-exit-left 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Right */
+[data-side="right"][data-state="open"] {
+  animation: sheet-enter-right 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+[data-side="right"][data-state="closed"] {
+  animation: sheet-exit-right 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Overlay */
+[data-sheet-overlay][data-state="open"] {
+  animation: sheet-overlay-enter 0.3s ease forwards;
+}
+[data-sheet-overlay][data-state="closed"] {
+  animation: sheet-overlay-exit 0.2s ease forwards;
 }

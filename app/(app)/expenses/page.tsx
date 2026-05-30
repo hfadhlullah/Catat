@@ -99,19 +99,6 @@ export default function ExpensesPage() {
 
       {wallets && wallets.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedWalletId("")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
-              !selectedWalletId
-                ? "border-transparent bg-primary text-primary-foreground"
-                : "border-border bg-background text-muted-foreground hover:border-primary/30"
-            )}
-          >
-            <Wallet className="h-3 w-3" />
-            Pribadi
-          </button>
           {wallets.map((wallet) => {
             const active = selectedWalletId === wallet._id;
             return (

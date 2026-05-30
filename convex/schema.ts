@@ -25,8 +25,11 @@ export default defineSchema({
     directionScope: v.optional(v.union(v.literal("expense"), v.literal("income"), v.literal("both"))),
     isDefault: v.optional(v.boolean()),
     isActive: v.boolean(),
+    parentId: v.optional(v.id("categories")),
     createdAt: v.number(),
-  }).index("by_created_by", ["createdBy"]),
+  })
+    .index("by_created_by", ["createdBy"])
+    .index("by_parent", ["parentId"]),
 
   transactions: defineTable({
     direction: v.union(v.literal("expense"), v.literal("income")),

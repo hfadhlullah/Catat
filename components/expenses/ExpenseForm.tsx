@@ -15,7 +15,8 @@ import { id as idLocale } from "date-fns/locale";
 import {
   CalendarIcon,
   ChevronDown,
-  ImagePlus,
+  Paperclip,
+  FileText,
   Plus,
   RotateCcw,
   Search,
@@ -24,9 +25,9 @@ import {
   X,
 } from "lucide-react";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { CategoryAddSheet } from "./CategoryAddSheet";
 import { formatIDR } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
@@ -38,9 +39,10 @@ const schema = z.object({
   description: z.string().min(1, "Masukkan deskripsi"),
   date: z.date(),
   categoryId: z.string().optional(),
-  walletId: z.string().optional(),
+  walletId: z.string().min(1, "Pilih wallet"),
   vendorId: z.string().optional(),
   notes: z.string().optional(),
+  transactionType: z.string().min(1, "Pilih tipe transaksi"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -96,7 +98,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const generateUploadUrl = useMutation(api.transactions.generateUploadUrl);
   const registerUploadedReceipt = useMutation(api.transactions.registerUploadedReceipt);
   const ensureDefaultCategories = useMutation(api.categories.ensureDefaultCategories);
-  const createCategory = useMutation(api.categories.createCategory);
   const createVendor = useMutation(api.vendors.createVendor);
   const extractReceipt = useAction(api.ocr.extractReceipt);
 
@@ -105,18 +106,21 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   const [storageId, setStorageId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [creatingCategory, setCreatingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryIcon, setNewCategoryIcon] = useState("");
-  const [showNewCategory, setShowNewCategory] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
   const [showNewVendor, setShowNewVendor] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
-  const [hasInstallment, setHasInstallment] = useState(false);
   const [direction, setDirection] = useState<"expense" | "income">("expense");
   const [transactionType, setTransactionType] = useState<(typeof transactionTypeOptions)[number]["value"]>("default");
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [sheetPrimaryId, setSheetPrimaryId] = useState<string | null>(null);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [repeatEvery, setRepeatEvery] = useState(1);
+  const [repeatPeriod, setRepeatPeriod] = useState<"day" | "week" | "biweekly" | "month" | "quarterly" | "year">("month");
+  const [repeatUntil, setRepeatUntil] = useState<Date | null>(null);
+  const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
+  const [untilPickerOpen, setUntilPickerOpen] = useState(false);
 
   const {
     register,
@@ -127,7 +131,7 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { date: new Date(), installmentCount: 1, installmentRate: 0 },
+    defaultValues: { amount: 0, description: "", date: new Date(), installmentCount: 1, installmentRate: 0, transactionType: "default", walletId: "" },
   });
 
   const isMobile = useMobile();
@@ -156,9 +160,23 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
 
     const isInstallment = (initialExpense.installmentCount ?? 1) > 1;
     const currentDirection = initialExpense.direction ?? "expense";
-    setHasInstallment(isInstallment);
     setDirection(currentDirection);
     setTransactionType(initialExpense.transactionType ?? "default");
+    setShowMoreOptions(
+      Boolean(initialExpense.vendorId) ||
+      Boolean(initialExpense.notes) ||
+      isInstallment
+    );
+    // Derive repeat settings from saved installmentCount for old data
+    if (isInstallment) {
+      setRepeatEvery(1);
+      setRepeatPeriod("month");
+      setRepeatUntil(null);
+    } else {
+      setRepeatEvery(1);
+      setRepeatPeriod("month");
+      setRepeatUntil(null);
+    }
 
     reset({
       amount: initialExpense.amount,
@@ -167,9 +185,10 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
       description: initialExpense.description,
       date: new Date(initialExpense.date),
       categoryId: initialExpense.categoryId,
-      walletId: initialExpense.walletId,
+      walletId: initialExpense.walletId ?? "",
       vendorId: initialExpense.vendorId,
       notes: initialExpense.notes ?? "",
+      transactionType: initialExpense.transactionType ?? "default",
     });
     setAmountDisplay(formatRupiah(String(initialExpense.amount)));
     setPhoto(null);
@@ -195,8 +214,6 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   function handleDirectionChange(nextDirection: "expense" | "income") {
     setDirection(nextDirection);
     if (nextDirection === "income") {
-      setHasInstallment(false);
-      setValue("categoryId", undefined, { shouldValidate: true });
       setValue("vendorId", undefined);
       setValue("installmentCount", 1);
       setValue("installmentRate", 0);
@@ -281,52 +298,34 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
     toast.success("Vendor ditambahkan");
   }
 
-  async function addNewCategory() {
-    if (!newCategoryName.trim()) return;
-    setCreatingCategory(true);
-    try {
-      const id = await createCategory({
-        name: newCategoryName.trim(),
-        icon: newCategoryIcon.trim() || undefined,
-      });
-      setValue("categoryId", id, { shouldValidate: true });
-      setCategorySearch("");
-      setNewCategoryName("");
-      setNewCategoryIcon("");
-      setShowNewCategory(false);
-      toast.success("Kategori ditambahkan");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Gagal menambahkan kategori");
-    } finally {
-      setCreatingCategory(false);
-    }
-  }
-
   async function onSubmit(data: FormValues) {
     setUploading(true);
     try {
+      if (!data.walletId) {
+        throw new Error("Pilih wallet anda");
+      }
+      if (!data.transactionType) {
+        throw new Error("Pilih tipe transaksi");
+      }
       if (direction === "expense" && !data.categoryId) {
         throw new Error("Pilih kategori");
-      }
-      if (direction === "income" && !data.walletId) {
-        throw new Error("Pilih wallet untuk pemasukan");
       }
 
       const receiptStorageId = storageId ?? (photo ? await uploadPhoto(photo) : null);
 
       const payload = {
         direction,
-        transactionType,
+        transactionType: data.transactionType as "default" | "upcoming" | "subscription" | "repetitive" | "lent" | "borrowed",
         amount: data.amount,
-        installmentCount: direction === "expense" && hasInstallment ? data.installmentCount : 1,
-        installmentRate: direction === "expense" && hasInstallment ? data.installmentRate : 0,
+        installmentCount: (data.transactionType === "subscription" || data.transactionType === "repetitive") ? data.installmentCount : 1,
+        installmentRate: (data.transactionType === "subscription" || data.transactionType === "repetitive") ? data.installmentRate : 0,
         description: data.description,
         date: data.date.getTime(),
-        categoryId: direction === "expense" && data.categoryId ? (data.categoryId as Id<"categories">) : undefined,
-        walletId: data.walletId ? (data.walletId as Id<"wallets">) : undefined,
+        categoryId: data.categoryId ? (data.categoryId as Id<"categories">) : undefined,
+        walletId: data.walletId as Id<"wallets">,
         vendorId: direction === "expense" && data.vendorId ? (data.vendorId as Id<"vendors">) : undefined,
         notes: data.notes || undefined,
-        receiptStorageId: direction === "expense" && receiptStorageId ? (receiptStorageId as Id<"_storage">) : undefined,
+        receiptStorageId: receiptStorageId ? (receiptStorageId as Id<"_storage">) : undefined,
       };
 
       if (mode === "edit") {
@@ -353,19 +352,69 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
   }
 
   const isBusy = isSubmitting || uploading || scanning;
-  const filteredCategories = (categories ?? []).filter((cat) =>
-    (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense") &&
+
+  // Sync installmentCount when repeat config changes
+  useEffect(() => {
+    if (transactionType !== "subscription" && transactionType !== "repetitive") return;
+    if (!repeatUntil) {
+      setValue("installmentCount", repeatEvery, { shouldValidate: true });
+      return;
+    }
+    const start = selectedDate.getTime();
+    const end = repeatUntil.getTime();
+    const diffMs = end - start;
+    if (diffMs <= 0) {
+      setValue("installmentCount", repeatEvery, { shouldValidate: true });
+      return;
+    }
+    let periodMs = 30.44 * 86400000;
+    switch (repeatPeriod) {
+      case "day": periodMs = 86400000; break;
+      case "week": periodMs = 7 * 86400000; break;
+      case "biweekly": periodMs = 14 * 86400000; break;
+      case "month": periodMs = 30.44 * 86400000; break;
+      case "quarterly": periodMs = 91.31 * 86400000; break;
+      case "year": periodMs = 365.25 * 86400000; break;
+    }
+    const occurrences = Math.max(1, Math.floor(diffMs / (repeatEvery * periodMs)) + 1);
+    setValue("installmentCount", occurrences, { shouldValidate: true });
+  }, [repeatEvery, repeatPeriod, repeatUntil, transactionType, selectedDate, setValue]);
+
+  const repeatPeriodLabels: Record<string, string> = {
+    day: "day",
+    week: "week",
+    biweekly: "biweekly",
+    month: "month",
+    quarterly: "quarterly",
+    year: "year",
+  };
+
+  const directionFiltered = (categories ?? []).filter((cat) =>
+    (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense")
+  );
+  const primaryCategories = directionFiltered.filter((cat) => !cat.parentId);
+  const subCategories = directionFiltered.filter((cat) => cat.parentId);
+  const filteredCategories = directionFiltered.filter((cat) =>
     cat.name.toLowerCase().includes(categorySearch.toLowerCase())
   );
   const totalWithInterest = Math.round(amountValue * (1 + installmentRate / 100));
   const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : 0;
   const selectedCategory = categories?.find((cat) => cat._id === selectedCategoryId);
+  const selectedParentCategory = selectedCategory?.parentId
+    ? categories?.find((cat) => cat._id === selectedCategory.parentId)
+    : null;
   const isExpense = direction === "expense";
+
+  const currentPrimarySubs = sheetPrimaryId
+    ? subCategories.filter((cat) => cat.parentId === sheetPrimaryId)
+    : [];
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="pb-6 space-y-5">
-      <div className={cn("overflow-hidden p-1.5", cardShadow)}>
-        <div className="grid grid-cols-2 gap-1.5">
+      {/* ── DIRECTION + CATEGORY + AMOUNT + DATE ── */}
+      <div className={cn(cardShadow, "overflow-hidden p-4")}>
+        {/* Direction toggle */}
+        <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted/50 p-1">
           {[
             { value: "expense", label: "Pengeluaran" },
             { value: "income", label: "Pemasukan" },
@@ -375,10 +424,10 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
               type="button"
               onClick={() => handleDirectionChange(option.value as typeof direction)}
               className={cn(
-                "relative px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200",
+                "relative px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200",
                 direction === option.value
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  : "text-muted-foreground hover:text-foreground"
               )}
               style={
                 direction === option.value
@@ -390,107 +439,210 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
             </button>
           ))}
         </div>
-        <div className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tipe Transaksi</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {transactionTypeOptions.map((option) => (
+
+        {/* Category + Amount */}
+        <div className="mt-4 flex items-center gap-4">
+          {/* Category icon */}
+          <button
+            type="button"
+            onClick={() => {
+              setSheetPrimaryId(null);
+              setCategorySheetOpen(true);
+            }}
+            className={cn(
+              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-3xl transition-colors",
+              selectedCategory
+                ? "border border-primary/20 bg-primary/10"
+                : "border border-border bg-muted/60 hover:bg-muted"
+            )}
+            aria-label="Pilih kategori"
+          >
+            {selectedCategory?.icon ?? "+"}
+          </button>
+
+          {/* Amount + category name */}
+          <div className="flex-1 min-w-0 text-right">
+            <div className="flex items-baseline justify-end gap-1 min-w-0">
+              <span className="text-lg font-semibold text-muted-foreground">Rp</span>
+              <input
+                ref={amountRef}
+                type="text"
+                inputMode="numeric"
+                value={amountDisplay}
+                onChange={handleAmountChange}
+                placeholder="0"
+                className="min-w-0 w-full max-w-full bg-transparent text-3xl font-bold text-foreground outline-none placeholder:text-muted-foreground text-right tracking-tight"
+              />
+            </div>
+            {selectedCategory && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {selectedParentCategory
+                  ? `${selectedParentCategory.name} › ${selectedCategory.name}`
+                  : selectedCategory.name}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Date row */}
+        <div className="mt-3">
+          {isMobile ? (
+            <label className="relative flex items-center justify-end gap-2 text-sm text-foreground transition-colors hover:text-primary cursor-pointer">
+              <span className="text-muted-foreground">at</span>
+              {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              <input
+                type="date"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                value={format(selectedDate, "yyyy-MM-dd")}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  setValue("date", new Date(e.target.value + "T00:00:00"));
+                }}
+              />
+            </label>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setDatePickerOpen(true)}
+                className="flex w-full items-center justify-end gap-2 text-sm text-foreground transition-colors hover:text-primary"
+              >
+                <span className="text-muted-foreground">at</span>
+                {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              </button>
+
+              <Sheet open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <SheetContent side="bottom" className="max-h-[55dvh] rounded-t-3xl px-4 py-6 overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle className="text-left text-lg font-bold">Pilih Tanggal</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-4 flex justify-center">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(d: Date | undefined) => {
+                        if (!d) return;
+                        setValue("date", d);
+                        setDatePickerOpen(false);
+                      }}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
+        </div>
+      </div>
+      {errors.amount && (
+        <p className="px-1 text-xs text-destructive">{errors.amount.message}</p>
+      )}
+
+      {/* ── TIPE TRANSAKSI + CICILAN + WALLET ── */}
+      <div className={cn("space-y-3 p-4", cardShadow)}>
+        {/* Transaction type */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+          {transactionTypeOptions.map((option) => {
+            const active = transactionType === option.value;
+            return (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setTransactionType(option.value)}
+                onClick={() => {
+                  setTransactionType(option.value);
+                  setValue("transactionType", option.value, { shouldValidate: true });
+                  if (option.value === "lent") handleDirectionChange("expense");
+                  if (option.value === "borrowed") handleDirectionChange("income");
+                }}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150",
-                  transactionType === option.value
+                  "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150",
+                  active
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {option.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </div>
-
-      {/* ── AMOUNT ── */}
-      <div className={cn("relative p-5", cardShadow)}>
-        <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
-
-        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Jumlah</p>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-semibold text-muted-foreground">Rp</span>
-          <input
-            ref={amountRef}
-            type="text"
-            inputMode="numeric"
-            value={amountDisplay}
-            onChange={handleAmountChange}
-            placeholder="0"
-            className="min-w-0 flex-1 bg-transparent text-4xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-        {errors.amount && (
-          <p className="mt-2 text-xs text-destructive">{errors.amount.message}</p>
+        {errors.transactionType && (
+          <p className="text-xs text-destructive">{errors.transactionType.message}</p>
         )}
-      </div>
 
-      {isExpense && (
-      <div className={cn("p-4", cardShadow)}>
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cicilan</p>
-          <button
-            type="button"
-            onClick={() => setHasInstallment((prev) => !prev)}
-            className={cn(
-              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200",
-              hasInstallment ? "bg-primary" : "bg-muted"
-            )}
-            aria-pressed={hasInstallment}
-          >
-            <span
-              className={cn(
-                "inline-block h-4 w-4 rounded-full bg-white transition-transform duration-200",
-                hasInstallment ? "translate-x-6" : "translate-x-1"
-              )}
-            />
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {hasInstallment ? "Pembayaran dicicil" : "Pembayaran langsung"}
-        </p>
-
-        {hasInstallment && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 animate-wallet-slide-up">
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Jumlah Cicilan</p>
+        {/* Cicilan (between transaction type and wallet) */}
+        {(transactionType === "subscription" || transactionType === "repetitive") && (
+          <div className="space-y-3 rounded-xl border border-border bg-background/60 p-4">
+            {/* Repeat every */}
+            <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+              <span>Repeat every</span>
               <input
                 type="number"
-                min={2}
+                min={1}
                 step={1}
-                {...register("installmentCount", { valueAsNumber: true })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+                value={repeatEvery}
+                onChange={(e) => setRepeatEvery(Math.max(1, Number(e.target.value)))}
+                className="w-12 bg-transparent text-center text-lg font-bold text-foreground outline-none border-b border-border focus:border-primary"
               />
-              {errors.installmentCount && (
-                <p className="mt-1 text-xs text-destructive">{errors.installmentCount.message}</p>
+              <button
+                type="button"
+                onClick={() => setPeriodSheetOpen(true)}
+                className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+              >
+                {repeatPeriodLabels[repeatPeriod]}
+              </button>
+            </div>
+
+            {/* Until */}
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <span className="font-medium text-foreground">until</span>
+              {repeatUntil ? (
+                <span className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setUntilPickerOpen(true)}
+                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+                  >
+                    {format(repeatUntil, "d MMM yyyy", { locale: idLocale })}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRepeatUntil(null)}
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    (×{installmentCount})
+                  </span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setUntilPickerOpen(true)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  Forever
+                </button>
               )}
             </div>
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Bunga Cicilan (%)</p>
+
+            {/* Bunga */}
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span>Bunga</span>
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 {...register("installmentRate", { valueAsNumber: true })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+                className="w-14 bg-transparent text-center text-base font-semibold text-foreground outline-none border-b border-border focus:border-primary"
               />
-              <p className="mt-1 text-xs text-muted-foreground">Gunakan `0` untuk tanpa bunga.</p>
-              {errors.installmentRate && (
-                <p className="mt-1 text-xs text-destructive">{errors.installmentRate.message}</p>
-              )}
+              <span>%</span>
             </div>
 
             {amountValue > 0 && installmentCount > 1 && (
-              <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-3 text-sm">
+              <div className="rounded-xl border border-dashed border-border bg-background px-3 py-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Estimasi total dibayar</span>
                   <span className="font-medium text-foreground">{formatIDR(totalWithInterest)}</span>
@@ -503,35 +655,18 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
             )}
           </div>
         )}
-      </div>
-      )}
 
-      <div className={cn("space-y-3 p-4", cardShadow)}>
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Wallet <span className="normal-case text-muted-foreground">(opsional)</span>
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {selectedWalletId && (
-            <button
-              type="button"
-              onClick={() => setValue("walletId", undefined)}
-              className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-            >
-              <X className="w-3 h-3" /> Hapus
-            </button>
-          )}
+        {/* Wallet */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
           {wallets?.map((wallet) => {
             const active = selectedWalletId === wallet._id;
             return (
               <button
                 key={wallet._id}
                 type="button"
-                onClick={() => setValue("walletId", active ? undefined : wallet._id)}
+                onClick={() => setValue("walletId", wallet._id, { shouldValidate: true })}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+                  "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                   active
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background text-muted-foreground hover:border-primary/30"
@@ -542,314 +677,200 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
             );
           })}
           {wallets?.length === 0 && (
-            <p className="text-xs text-muted-foreground">Belum ada wallet. Tambah dari halaman Wallet.</p>
+            <p className="shrink-0 text-xs text-muted-foreground">Belum ada wallet.</p>
           )}
         </div>
+        {errors.walletId && (
+          <p className="text-xs text-destructive">{errors.walletId.message}</p>
+        )}
       </div>
 
-      {/* ── CATEGORY ── */}
-      {isExpense && (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Kategori</p>
-          {!showNewCategory && (
-            <button
-              type="button"
-              onClick={() => setShowNewCategory(true)}
-              className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
-            >
-              <Plus className="w-3 h-3" /> Kategori baru
-            </button>
-          )}
-        </div>
-
-        {showNewCategory && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-1 sm:flex sm:flex-wrap">
-            <input
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewCategory())}
-              placeholder="Nama kategori"
-              autoFocus
-              disabled={creatingCategory}
-               className="min-w-0 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary sm:min-w-[12rem] sm:flex-1"
+      {/* ── DESCRIPTION + PHOTO ── */}
+      <div className={cn("overflow-hidden", cardShadow)}>
+        <div className="p-4">
+          <div className="flex items-start gap-2 min-w-0">
+            <textarea
+              {...register("description")}
+              placeholder="Deskripsi transaksi..."
+              rows={1}
+              className="min-h-[2.5rem] w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
-             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 sm:min-w-[10rem]">
-              <span className="text-lg leading-none" aria-hidden="true">
-                {newCategoryIcon.trim() || "🙂"}
-              </span>
-              <input
-                value={newCategoryIcon}
-                onChange={(e) => setNewCategoryIcon(e.target.value)}
-                placeholder="Select Emoji"
-                disabled={creatingCategory}
-                className="w-24 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="col-span-2 flex gap-2 sm:col-auto">
-              <button
-                type="button"
-                disabled={creatingCategory}
-                onClick={addNewCategory}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 sm:flex-none"
-              >
-                {creatingCategory ? "Menambah..." : "Tambah"}
-              </button>
-              <button
-                type="button"
-                disabled={creatingCategory}
-                onClick={() => {
-                  setNewCategoryName("");
-                  setNewCategoryIcon("");
-                  setShowNewCategory(false);
-                }}
-                className="h-10 w-10 shrink-0 rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-              >
-                <X className="mx-auto w-4 h-4" />
-              </button>
-            </div>
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setCategoryDialogOpen(true)}
-          className={cn(
-            "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors",
-            selectedCategory ? "border-primary/40 bg-primary/10" : "border-border bg-card"
-          )}
-        >
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Select Category</p>
-            <p className="mt-1 text-sm font-medium text-foreground">
-              {selectedCategory ? `${selectedCategory.icon ?? ""} ${selectedCategory.name}`.trim() : "Pilih kategori"}
-            </p>
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
-
-        {errors.categoryId && (
-          <p className="px-1 text-xs text-destructive">{errors.categoryId.message}</p>
-        )}
-      </div>
-      )}
-
-      {/* ── DATE & DESCRIPTION ── */}
-      <div className={cn("divide-y divide-border", cardShadow)}>
-        {/* Date */}
-        <div className="p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tanggal</p>
-          {isMobile ? (
-            <label className="relative flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary cursor-pointer">
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-              {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-              <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="date"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                value={format(selectedDate, "yyyy-MM-dd")}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setValue("date", new Date(e.target.value + "T00:00:00"));
-                }}
-              />
-            </label>
-          ) : (
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
-                >
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  {format(selectedDate, "EEEE, d MMMM yyyy", { locale: idLocale })}
-                  <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(d: Date | undefined) => {
-                    if (!d) return;
-                    setValue("date", d);
-                    setDatePickerOpen(false);
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
-
-        {/* Description */}
-        <div className="p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Deskripsi</p>
-          <input
-            {...register("description")}
-            placeholder="Contoh: Beli semen 10 sak"
-            className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          />
           {errors.description && (
             <p className="mt-1 text-xs text-destructive">{errors.description.message}</p>
           )}
         </div>
-      </div>
 
-      {/* ── VENDOR ── */}
-      {isExpense && (
-      <div className={cn("space-y-3 p-4", cardShadow)}>
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Vendor <span className="normal-case text-muted-foreground">(opsional)</span>
-          </p>
-          {!showNewVendor && (
+        <div className="border-t border-border" />
+        <div className="p-0">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoChange}
+            className="hidden"
+          />
+          {photoPreview ? (
+            <div className="relative">
+              <Image
+                src={photoPreview}
+                alt={mode === "edit" ? "Preview lampiran" : "Preview lampiran baru"}
+                width={800}
+                height={256}
+                className="w-full max-h-52 object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              {scanning && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 backdrop-blur-sm">
+                  <Sparkles className="w-6 h-6 text-primary animate-pulse" />
+                  <p className="text-sm font-medium text-white">Membaca nota...</p>
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={scanning}
+                onClick={() => fileRef.current?.click()}
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-foreground backdrop-blur-sm transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                <RotateCcw className="w-3 h-3" /> Ganti foto
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => setShowNewVendor(true)}
-              className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
+              onClick={() => fileRef.current?.click()}
+              className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Plus className="w-3 h-3" /> Vendor baru
+              <span className="flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Tambah lampiran
+              </span>
+              <Plus className="h-4 w-4" />
             </button>
           )}
         </div>
-
-        {/* Vendor chips */}
-        {!showNewVendor && (
-          <div className="flex flex-wrap gap-2">
-            {/* Clear chip */}
-            {selectedVendorId && (
-              <button
-                type="button"
-                onClick={() => setValue("vendorId", undefined)}
-                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-              >
-                <X className="w-3 h-3" /> Hapus
-              </button>
-            )}
-            {vendors?.map((v) => {
-              const active = selectedVendorId === v._id;
-              return (
-                <button
-                  key={v._id}
-                  type="button"
-                  onClick={() => setValue("vendorId", active ? undefined : v._id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
-                    active
-                      ? "border-transparent bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground hover:border-primary/30"
-                  )}
-                >
-                  <Store className="w-3 h-3" />
-                  {v.name}
-                </button>
-              );
-            })}
-            {vendors?.length === 0 && (
-              <p className="text-xs text-muted-foreground">Belum ada vendor. Tambah di atas.</p>
-            )}
-          </div>
-        )}
-
-        {/* New vendor input */}
-        {showNewVendor && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-            <input
-              value={newVendorName}
-              onChange={(e) => setNewVendorName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewVendor())}
-              placeholder="Nama vendor baru"
-              autoFocus
-              className="min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-            />
-            <div className="col-span-2 flex gap-2 sm:col-auto">
-              <button
-                type="button"
-                onClick={addNewVendor}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:flex-none"
-              >
-                Tambah
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowNewVendor(false)}
-                className="h-10 w-10 shrink-0 rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <X className="mx-auto w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-      )}
 
-      {/* ── PHOTO ── */}
-      {isExpense && (
-      <div className="space-y-2">
-        <p className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Foto Nota
-        </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoChange}
-          className="hidden"
-        />
-        {photoPreview ? (
-          <div className={cn("relative overflow-hidden", cardShadow)}>
-             <Image
-               src={photoPreview}
-               alt={mode === "edit" ? "Preview nota pengeluaran" : "Preview nota baru"}
-              width={800}
-              height={256}
-              className="w-full max-h-64 object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-            {scanning && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 backdrop-blur-sm">
-                <Sparkles className="w-6 h-6 text-primary animate-pulse" />
-                <p className="text-sm font-medium text-white">Membaca nota...</p>
+      {/* ── MORE OPTIONS ── */}
+      <div className={cn("overflow-hidden", cardShadow)}>
+        <button
+          type="button"
+          onClick={() => setShowMoreOptions((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/30"
+        >
+          <span>Opsi lainnya</span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+              showMoreOptions && "rotate-180"
+            )}
+          />
+        </button>
+
+        {showMoreOptions && (
+          <div className="space-y-4 border-t border-border p-4">
+            {/* Vendor */}
+            {isExpense && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Vendor <span className="normal-case text-muted-foreground">(opsional)</span>
+                  </p>
+                  {!showNewVendor && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewVendor(true)}
+                      className="flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
+                    >
+                      <Plus className="w-3 h-3" /> Vendor baru
+                    </button>
+                  )}
+                </div>
+
+                {!showNewVendor && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedVendorId && (
+                      <button
+                        type="button"
+                        onClick={() => setValue("vendorId", undefined)}
+                        className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                      >
+                        <X className="w-3 h-3" /> Hapus
+                      </button>
+                    )}
+                    {vendors?.map((v) => {
+                      const active = selectedVendorId === v._id;
+                      return (
+                        <button
+                          key={v._id}
+                          type="button"
+                          onClick={() => setValue("vendorId", active ? undefined : v._id)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+                            active
+                              ? "border-transparent bg-primary text-primary-foreground"
+                              : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                          )}
+                        >
+                          <Store className="w-3 h-3" />
+                          {v.name}
+                        </button>
+                      );
+                    })}
+                    {vendors?.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Belum ada vendor. Tambah di atas.</p>
+                    )}
+                  </div>
+                )}
+
+                {showNewVendor && (
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                    <input
+                      value={newVendorName}
+                      onChange={(e) => setNewVendorName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addNewVendor())}
+                      placeholder="Nama vendor baru"
+                      autoFocus
+                      className="min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+                    />
+                    <div className="col-span-2 flex gap-2 sm:col-auto">
+                      <button
+                        type="button"
+                        onClick={addNewVendor}
+                        className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:flex-none"
+                      >
+                        Tambah
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewVendor(false)}
+                        className="h-10 w-10 shrink-0 rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <X className="mx-auto w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            <button
-              type="button"
-              disabled={scanning}
-              onClick={() => fileRef.current?.click()}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-foreground backdrop-blur-sm transition-colors hover:bg-accent disabled:opacity-50"
-            >
-               <RotateCcw className="w-3 h-3" /> Ganti foto
-             </button>
-           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex h-36 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border text-muted-foreground transition-all duration-200 hover:border-primary hover:text-primary active:scale-[0.98]"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
-              <ImagePlus className="w-6 h-6" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">Ambil / pilih foto nota (opsional)</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">JPG, PNG hingga 10MB</p>
-            </div>
-          </button>
-        )}
-      </div>
-      )}
 
-      {/* ── NOTES ── */}
-      <div className={cn("p-4", cardShadow)}>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
-        </p>
-        <input
-          {...register("notes")}
-          placeholder="Catatan tambahan..."
-          className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-        />
+            {/* Notes */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
+              </p>
+              <input
+                {...register("notes")}
+                placeholder="Catatan tambahan..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+              />
+            </div>
+
+
+          </div>
+        )}
       </div>
 
       {/* ── SUBMIT ── */}
@@ -878,9 +899,34 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
         )}
       </button>
 
-      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-        <DialogContent className="max-w-[min(92vw,40rem)] rounded-3xl border-border bg-card p-4 text-card-foreground">
-          <DialogTitle className="text-2xl font-semibold">Select Category</DialogTitle>
+      {/* ── CATEGORY SHEET ── */}
+      <Sheet open={categorySheetOpen} onOpenChange={(open) => {
+        setCategorySheetOpen(open);
+        if (!open) setSheetPrimaryId(null);
+      }}>
+        <SheetContent side="bottom" className="max-h-[75dvh] rounded-t-3xl px-4 py-6 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
+              {(() => {
+                if (sheetPrimaryId) {
+                  const p = primaryCategories.find((c) => c._id === sheetPrimaryId);
+                  return p ? `${p.icon} ${p.name}` : "Pilih Kategori";
+                }
+                return "Pilih Kategori";
+              })()}
+            </SheetTitle>
+          </SheetHeader>
+
+          {sheetPrimaryId && (
+            <button
+              type="button"
+              onClick={() => setSheetPrimaryId(null)}
+              className="mt-2 flex items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80"
+            >
+              ← Kembali ke utama
+            </button>
+          )}
+
           <div className="relative mt-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -891,43 +937,180 @@ export function ExpenseForm({ mode = "create", expenseId, initialExpense }: Expe
               className="w-full rounded-xl border border-border bg-card py-2 pl-8 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-            {filteredCategories.map((cat) => {
-              const active = selectedCategoryId === cat._id;
-              return (
-                <button
-                  key={cat._id}
-                  type="button"
-                  onClick={() => {
-                    setValue("categoryId", cat._id, { shouldValidate: true });
-                    setCategoryDialogOpen(false);
-                  }}
+
+          {/* Primary categories grid */}
+          {!sheetPrimaryId && (
+            <div className="mt-4 grid grid-cols-2 gap-3 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4">
+              {filteredCategories.filter((c) => !c.parentId).map((cat) => {
+                const hasSubs = subCategories.some((s) => s.parentId === cat._id);
+                const active = selectedCategoryId === cat._id;
+                return (
+                  <button
+                    key={cat._id}
+                    type="button"
+                    onClick={() => {
+                      if (hasSubs) {
+                        setSheetPrimaryId(cat._id);
+                      } else {
+                        setValue("categoryId", cat._id, { shouldValidate: true });
+                        setCategorySheetOpen(false);
+                      }
+                    }}
+                    className={cn(
+                      "rounded-2xl border p-3 text-center transition-all",
+                      active ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
+                    )}
+                  >
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style={{ backgroundColor: `${cat.color ?? "#e2e8f0"}33` }}>
+                      {cat.icon ?? "📁"}
+                    </div>
+                    <p className="mt-2 text-xs font-medium text-foreground">{cat.name}</p>
+                    {hasSubs && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">Lihat sub ›</p>
+                    )}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setAddCategoryOpen(true);
+                  setCategorySheetOpen(false);
+                }}
+                className="rounded-2xl border border-dashed border-border p-3 text-center text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+              >
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-2xl">+</div>
+                <p className="mt-2 text-xs font-medium">Tambah</p>
+              </button>
+            </div>
+          )}
+
+          {/* Sub-categories for selected primary */}
+          {sheetPrimaryId && (
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setValue("categoryId", sheetPrimaryId, { shouldValidate: true });
+                  setCategorySheetOpen(false);
+                  setSheetPrimaryId(null);
+                }}
+                className={cn(
+                  "w-full rounded-xl border px-4 py-3 text-left text-sm transition-all",
+                  selectedCategoryId === sheetPrimaryId
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:border-primary/30"
+                )}
+              >
+                <span className="font-medium text-foreground">Pilih kategori utama</span>
+              </button>
+
+              {currentPrimarySubs.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4">
+                  {currentPrimarySubs.map((cat) => {
+                    const active = selectedCategoryId === cat._id;
+                    return (
+                      <button
+                        key={cat._id}
+                        type="button"
+                        onClick={() => {
+                          setValue("categoryId", cat._id, { shouldValidate: true });
+                          setCategorySheetOpen(false);
+                          setSheetPrimaryId(null);
+                        }}
+                        className={cn(
+                          "rounded-2xl border p-3 text-center transition-all",
+                          active ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
+                        )}
+                      >
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style={{ backgroundColor: `${cat.color ?? "#e2e8f0"}33` }}>
+                          {cat.icon ?? "📁"}
+                        </div>
+                        <p className="mt-2 text-xs font-medium text-foreground">{cat.name}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ── PERIOD SELECTOR SHEET ── */}
+      <Sheet open={periodSheetOpen} onOpenChange={setPeriodSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[60dvh] rounded-t-3xl px-5 py-6 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-left text-lg font-bold">Select Period</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-2">
+            {([
+              { value: "day", label: "Day" },
+              { value: "week", label: "Week" },
+              { value: "biweekly", label: "Biweekly" },
+              { value: "month", label: "Month" },
+              { value: "quarterly", label: "Quarterly" },
+              { value: "year", label: "Year" },
+            ] as { value: typeof repeatPeriod; label: string }[]).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  setRepeatPeriod(opt.value);
+                  setPeriodSheetOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors",
+                  repeatPeriod === opt.value
+                    ? "bg-primary/10 text-primary ring-1 ring-primary"
+                    : "text-foreground hover:bg-accent"
+                )}
+              >
+                <span
                   className={cn(
-                    "rounded-2xl border p-3 text-center transition-all",
-                    active ? "border-primary bg-primary/10" : "border-border hover:border-primary/30"
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                    repeatPeriod === opt.value
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-muted-foreground/30"
                   )}
                 >
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-2xl" style={{ backgroundColor: `${cat.color ?? "#e2e8f0"}33` }}>
-                    {cat.icon ?? "📁"}
-                  </div>
-                  <p className="mt-2 text-xs font-medium text-foreground">{cat.name}</p>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => {
-                setShowNewCategory(true);
-                setCategoryDialogOpen(false);
-              }}
-              className="rounded-2xl border border-dashed border-border p-3 text-center text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
-            >
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-2xl">+</div>
-              <p className="mt-2 text-xs font-medium">Tambah</p>
-            </button>
+                  {repeatPeriod === opt.value && <span className="h-2 w-2 rounded-full bg-current" />}
+                </span>
+                {opt.label}
+              </button>
+            ))}
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
+
+      {/* ── UNTIL DATE PICKER ── */}
+      <Sheet open={untilPickerOpen} onOpenChange={setUntilPickerOpen}>
+        <SheetContent side="bottom" className="max-h-[55dvh] rounded-t-3xl px-4 py-6 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-left text-lg font-bold">Pilih Tanggal Berakhir</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 flex justify-center">
+            <Calendar
+              mode="single"
+              selected={repeatUntil ?? undefined}
+              onSelect={(d: Date | undefined) => {
+                if (!d) return;
+                setRepeatUntil(d);
+                setUntilPickerOpen(false);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <CategoryAddSheet
+        open={addCategoryOpen}
+        onOpenChange={setAddCategoryOpen}
+        defaultDirection={direction}
+        onCreated={(id) => {
+          setValue("categoryId", id, { shouldValidate: true });
+        }}
+      />
     </form>
   );
 }

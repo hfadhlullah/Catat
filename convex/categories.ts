@@ -78,6 +78,7 @@ export const createCategory = mutation({
     name: v.string(),
     color: v.optional(v.string()),
     icon: v.optional(v.string()),
+    parentId: v.optional(v.id("categories")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -91,6 +92,13 @@ export const createCategory = mutation({
 
     const name = args.name.trim();
     if (!name) throw new ConvexError("Nama kategori wajib diisi");
+
+    if (args.parentId) {
+      const parent = await ctx.db.get(args.parentId);
+      if (!parent || !parent.isActive) {
+        throw new ConvexError("Kategori utama tidak ditemukan");
+      }
+    }
 
     const existing = await ctx.db
       .query("categories")
@@ -110,7 +118,32 @@ export const createCategory = mutation({
       directionScope: "both",
       isDefault: false,
       isActive: true,
+      parentId: args.parentId,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const listSubCategories = query({
+  args: { parentId: v.id("categories") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile) throw new ConvexError("Profile not found");
+
+    const accessibleIds = await getAccessibleProfileIds(ctx, profile._id);
+
+    const all = await ctx.db
+      .query("categories")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    return all.filter((cat) => cat.isDefault || accessibleIds.includes(cat.createdBy as string));
   },
 });

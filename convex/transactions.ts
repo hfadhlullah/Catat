@@ -92,8 +92,9 @@ async function validateTransactionPayload(
   profileId: Id<"userProfiles">,
   args: {
     direction: "expense" | "income";
+    transactionType: string;
     categoryId?: Id<"categories">;
-    walletId?: Id<"wallets">;
+    walletId: Id<"wallets">;
     vendorId?: Id<"vendors">;
     installmentCount?: number;
     installmentRate?: number;
@@ -101,11 +102,21 @@ async function validateTransactionPayload(
 ) {
   const accessibleIds = await getAccessibleProfileIds(ctx, profileId);
 
+  if (!args.walletId) {
+    throw new ConvexError("Wallet wajib dipilih");
+  }
+  const hasAccess = await hasWalletAccess(ctx, profileId, args.walletId);
+  if (!hasAccess) {
+    throw new ConvexError("Wallet tidak valid");
+  }
+
   if (args.direction === "expense") {
     if (!args.categoryId) {
       throw new ConvexError("Kategori wajib dipilih");
     }
+  }
 
+  if (args.categoryId) {
     const category = await ctx.db.get(args.categoryId);
     if (
       !category ||
@@ -115,17 +126,26 @@ async function validateTransactionPayload(
       throw new ConvexError("Kategori tidak valid");
     }
 
-    if (category.directionScope === "income") {
+    if (args.direction === "expense" && category.directionScope === "income") {
       throw new ConvexError("Kategori hanya untuk pemasukan");
     }
 
-    if (args.vendorId) {
-      const vendor = await ctx.db.get(args.vendorId);
-      if (!vendor || !vendor.isActive || !accessibleIds.includes(vendor.createdBy as string)) {
-        throw new ConvexError("Vendor tidak valid");
-      }
+    if (args.direction === "income" && category.directionScope === "expense") {
+      throw new ConvexError("Kategori hanya untuk pengeluaran");
     }
+  }
 
+  if (args.vendorId) {
+    if (args.direction === "income") {
+      throw new ConvexError("Pemasukan tidak memakai vendor");
+    }
+    const vendor = await ctx.db.get(args.vendorId);
+    if (!vendor || !vendor.isActive || !accessibleIds.includes(vendor.createdBy as string)) {
+      throw new ConvexError("Vendor tidak valid");
+    }
+  }
+
+  if (args.direction === "expense") {
     if (args.installmentCount !== undefined) {
       if (!Number.isInteger(args.installmentCount) || args.installmentCount < 1) {
         throw new ConvexError("Cicilan harus minimal 1x");
@@ -136,24 +156,11 @@ async function validateTransactionPayload(
       throw new ConvexError("Bunga cicilan tidak boleh negatif");
     }
   } else {
-    if (!args.walletId) {
-      throw new ConvexError("Wallet wajib dipilih untuk pemasukan");
-    }
-    if (args.categoryId || args.vendorId) {
-      throw new ConvexError("Pemasukan tidak memakai kategori atau vendor");
-    }
     if (args.installmentCount && args.installmentCount > 1) {
       throw new ConvexError("Pemasukan tidak mendukung cicilan");
     }
     if (args.installmentRate && args.installmentRate > 0) {
       throw new ConvexError("Pemasukan tidak mendukung bunga cicilan");
-    }
-  }
-
-  if (args.walletId) {
-    const hasAccess = await hasWalletAccess(ctx, profileId, args.walletId);
-    if (!hasAccess) {
-      throw new ConvexError("Wallet tidak valid");
     }
   }
 }
@@ -203,15 +210,13 @@ export const registerUploadedReceipt = mutation({
 export const createTransaction = mutation({
   args: {
     direction: v.union(v.literal("expense"), v.literal("income")),
-    transactionType: v.optional(
-      v.union(
-        v.literal("default"),
-        v.literal("upcoming"),
-        v.literal("subscription"),
-        v.literal("repetitive"),
-        v.literal("lent"),
-        v.literal("borrowed")
-      )
+    transactionType: v.union(
+      v.literal("default"),
+      v.literal("upcoming"),
+      v.literal("subscription"),
+      v.literal("repetitive"),
+      v.literal("lent"),
+      v.literal("borrowed")
     ),
     amount: v.number(),
     installmentCount: v.optional(v.number()),
@@ -219,7 +224,7 @@ export const createTransaction = mutation({
     description: v.string(),
     date: v.number(),
     categoryId: v.optional(v.id("categories")),
-    walletId: v.optional(v.id("wallets")),
+    walletId: v.id("wallets"),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
@@ -232,13 +237,13 @@ export const createTransaction = mutation({
     const now = Date.now();
     const transactionId = await ctx.db.insert("transactions", {
       direction: args.direction,
-      transactionType: args.transactionType ?? "default",
+      transactionType: args.transactionType,
       amount: Math.round(args.amount),
       installmentCount: args.direction === "expense" ? (args.installmentCount ?? 1) : undefined,
       installmentRate: args.direction === "expense" && args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
       description: args.description.trim(),
       date: args.date,
-      categoryId: args.direction === "expense" ? args.categoryId : undefined,
+      categoryId: args.categoryId,
       walletId: args.walletId,
       vendorId: args.direction === "expense" ? args.vendorId : undefined,
       submittedBy: profile._id,
@@ -261,7 +266,7 @@ export const getTransactionById = query({
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
     const transaction = await ctx.db.get(args.id);
-    if (!transaction) throw new ConvexError("Not found");
+    if (!transaction) return null;
 
     const isOwner = transaction.submittedBy === profile._id;
     let isShared = false;
@@ -275,7 +280,7 @@ export const getTransactionById = query({
     const wallet = transaction.walletId ? await ctx.db.get(transaction.walletId) : null;
     const receiptUrl = transaction.receiptStorageId ? await ctx.storage.getUrl(transaction.receiptStorageId) : null;
 
-    return { ...transaction, category, vendor, wallet, receiptUrl };
+    return { ...transaction, category, vendor, wallet, receiptUrl, isOwner };
   },
 });
 
@@ -283,15 +288,13 @@ export const updateTransaction = mutation({
   args: {
     id: v.id("transactions"),
     direction: v.union(v.literal("expense"), v.literal("income")),
-    transactionType: v.optional(
-      v.union(
-        v.literal("default"),
-        v.literal("upcoming"),
-        v.literal("subscription"),
-        v.literal("repetitive"),
-        v.literal("lent"),
-        v.literal("borrowed")
-      )
+    transactionType: v.union(
+      v.literal("default"),
+      v.literal("upcoming"),
+      v.literal("subscription"),
+      v.literal("repetitive"),
+      v.literal("lent"),
+      v.literal("borrowed")
     ),
     amount: v.number(),
     installmentCount: v.optional(v.number()),
@@ -299,7 +302,7 @@ export const updateTransaction = mutation({
     description: v.string(),
     date: v.number(),
     categoryId: v.optional(v.id("categories")),
-    walletId: v.optional(v.id("wallets")),
+    walletId: v.id("wallets"),
     vendorId: v.optional(v.id("vendors")),
     notes: v.optional(v.string()),
     receiptStorageId: v.optional(v.id("_storage")),
@@ -319,13 +322,13 @@ export const updateTransaction = mutation({
 
     await ctx.db.patch(args.id, {
       direction: args.direction,
-      transactionType: args.transactionType ?? transaction.transactionType,
+      transactionType: args.transactionType,
       amount: Math.round(args.amount),
       installmentCount: args.direction === "expense" ? (args.installmentCount ?? 1) : undefined,
       installmentRate: args.direction === "expense" && args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
       description: args.description.trim(),
       date: args.date,
-      categoryId: args.direction === "expense" ? args.categoryId : undefined,
+      categoryId: args.categoryId,
       walletId: args.walletId,
       vendorId: args.direction === "expense" ? args.vendorId : undefined,
       notes: args.notes,
@@ -509,8 +512,26 @@ export const getTransactionSummary = query({
       byCategoryMap.set(transaction.categoryId, (byCategoryMap.get(transaction.categoryId) ?? 0) + transaction.amount);
     }
 
+    const byIncomeCategoryMap = new Map<string, number>();
+    for (const transaction of incomeTransactions) {
+      if (!transaction.categoryId) continue;
+      byIncomeCategoryMap.set(transaction.categoryId, (byIncomeCategoryMap.get(transaction.categoryId) ?? 0) + transaction.amount);
+    }
+
     const byCategory = await Promise.all(
       Array.from(byCategoryMap.entries()).map(async ([categoryId, total]) => {
+        const category = await ctx.db.get(categoryId as Id<"categories">);
+        return {
+          categoryId,
+          name: category?.name ?? "Unknown",
+          total,
+          color: category?.color,
+        };
+      })
+    );
+
+    const byIncomeCategory = await Promise.all(
+      Array.from(byIncomeCategoryMap.entries()).map(async ([categoryId, total]) => {
         const category = await ctx.db.get(categoryId as Id<"categories">);
         return {
           categoryId,
@@ -529,6 +550,7 @@ export const getTransactionSummary = query({
       incomeTotal,
       net: incomeTotal - expenseTotal,
       byCategory,
+      byIncomeCategory,
     };
   },
 });

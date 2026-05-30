@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
@@ -14,18 +14,13 @@ import { id as idLocale } from "date-fns/locale";
 import { CatatLogo } from "@/components/brand/CatatLogo";
 import { cn } from "@/lib/utils";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
   Tooltip,
   ResponsiveContainer,
   Cell,
   PieChart,
   Pie,
-  CartesianGrid,
 } from "recharts";
-import { UserPlus, Check, X } from "lucide-react";
+import { UserPlus, Check, X, ArrowRight } from "lucide-react";
 
 const COLORS = [
   "#3b82f6",
@@ -44,15 +39,21 @@ export default function DashboardPage() {
   const period = format(new Date(), "yyyy-MM");
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+  const [compositionDir, setCompositionDir] = useState<"expense" | "income">("expense");
   const effectiveSelectedWalletId = selectedWalletId || walletOverview?.wallets[0]?._id || "";
   const summary = useQuery(api.transactions.getTransactionSummary, {
     period,
     walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
   });
-  const installmentOverview = useQuery(api.transactions.getInstallmentOverview, {
-    period,
-    walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
-  });
+
+  const { results: recentTransactions, status: txStatus } = usePaginatedQuery(
+    api.transactions.listTransactions,
+    {
+      walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
+    },
+    { initialNumItems: 5 }
+  );
+
   const pendingInvites = useQuery(api.walletSharing.listPendingInvites);
   const acceptInvite = useMutation(api.walletSharing.acceptInvite);
   const rejectInvite = useMutation(api.walletSharing.rejectInvite);
@@ -71,6 +72,17 @@ export default function DashboardPage() {
       percentage:
         summary && summary.expenseTotal > 0
           ? (category.total / summary.expenseTotal) * 100
+          : 0,
+    }));
+
+  const incomeCategoryData = [...(summary?.byIncomeCategory ?? [])]
+    .sort((a, b) => b.total - a.total)
+    .map((category, index) => ({
+      ...category,
+      color: category.color ?? COLORS[(index + 3) % COLORS.length],
+      percentage:
+        summary && summary.incomeTotal > 0
+          ? (category.total / summary.incomeTotal) * 100
           : 0,
     }));
 
@@ -241,32 +253,49 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Total card */}
+      {/* Total card — Pengeluaran & Pemasukan */}
       <div className="relative rounded-2xl border border-border bg-card p-5
         shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
         dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
         <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
 
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Total Pengeluaran
-        </p>
-        {summary === undefined ? (
-          <Skeleton className="mt-2 h-10 w-48 bg-muted" />
-        ) : (
-          <p className="mt-2 text-3xl font-semibold text-card-foreground tracking-tight">
-            {formatIDR(summary.expenseTotal)}
-          </p>
-        )}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Pengeluaran
+            </p>
+            {summary === undefined ? (
+              <Skeleton className="mt-2 h-10 w-full bg-muted" />
+            ) : (
+              <p className="mt-2 text-2xl font-semibold text-card-foreground tracking-tight">
+                {formatIDR(summary.expenseTotal)}
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Pemasukan
+            </p>
+            {summary === undefined ? (
+              <Skeleton className="mt-2 h-10 w-full bg-muted" />
+            ) : (
+              <p className="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {formatIDR(summary.incomeTotal)}
+              </p>
+            )}
+          </div>
+        </div>
+
         <div className="mt-3 flex items-center gap-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
           <p className="text-xs text-muted-foreground">
-            {summary?.count ?? "–"} transaksi
+            {summary?.expenseCount ?? "–"} pengeluaran • {summary?.incomeCount ?? "–"} pemasukan
           </p>
         </div>
         {summary && (
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>Income {formatIDR(summary.incomeTotal)}</span>
             <span>Net {formatIDR(summary.net)}</span>
+            <span>{summary.count} total transaksi</span>
           </div>
         )}
 
@@ -305,277 +334,325 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Pie Chart */}
-      {summary && categoryData.length > 0 && (
+      {/* Komposisi — toggled */}
+      {summary && (categoryData.length > 0 || incomeCategoryData.length > 0) && (
         <div className="relative rounded-2xl border border-border bg-card p-4
           shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
           dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Komposisi Pengeluaran
-            </p>
+          {/* Tape — top right */}
+          <div className="absolute -top-2 right-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm rotate-1 z-10" />
+
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-sm rotate-45", compositionDir === "expense" ? "bg-primary/40" : "bg-emerald-400/60")} />
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Komposisi {compositionDir === "expense" ? "Pengeluaran" : "Pemasukan"}
+              </p>
+            </div>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCompositionDir("expense")}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                  compositionDir === "expense"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:bg-accent"
+                )}
+              >
+                Pengeluaran
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompositionDir("income")}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                  compositionDir === "income"
+                    ? "bg-emerald-500 text-white"
+                    : "bg-background text-muted-foreground hover:bg-accent"
+                )}
+              >
+                Pemasukan
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col items-center gap-4">
-            {/* Slight rotation for "pasted on" look */}
-            <div className="h-56 w-full max-w-[280px] -rotate-[0.6deg]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    dataKey="total"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={58}
-                    outerRadius={88}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    {categoryData.map((entry) => (
-                      <Cell
-                        key={entry.categoryId}
-                        fill={entry.color}
-                        stroke="var(--card)"
-                        strokeWidth={3}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => [formatIDR(Number(value)), "Total"]}
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                      padding: "8px 12px",
-                      fontSize: 12,
-                      color: "var(--card-foreground)",
-                    }}
-                    labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
-                    itemStyle={{ fontSize: 12, color: "inherit" }}
-                  />
-                  <text
-                    x="50%"
-                    y="46%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="fill-muted-foreground text-[12px]"
-                  >
-                    Total
-                  </text>
-                  <text
-                    x="50%"
-                    y="56%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="fill-card-foreground text-[16px] font-semibold"
-                  >
-                    {formatIDR(summary.expenseTotal)}
-                  </text>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="w-full space-y-2">
-              {categoryData.map((category, i) => (
-                <div
-                  key={category.categoryId}
-                  className="flex items-center justify-between rounded-xl border border-border bg-muted/50 px-3 py-2"
-                  style={{
-                    transform: `rotate(${i % 2 === 0 ? -0.4 : 0.4}deg)`,
-                  }}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: category.color }}
+          {compositionDir === "expense" ? (
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-56 w-full max-w-[280px] -rotate-[0.6deg]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      dataKey="total"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={58}
+                      outerRadius={88}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {categoryData.map((entry) => (
+                        <Cell
+                          key={entry.categoryId}
+                          fill={entry.color}
+                          stroke="var(--card)"
+                          strokeWidth={3}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => [formatIDR(Number(value)), "Total"]}
+                      contentStyle={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        color: "var(--card-foreground)",
+                      }}
+                      labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
+                      itemStyle={{ fontSize: 12, color: "inherit" }}
                     />
-                    <span className="truncate text-sm text-foreground">
-                      {category.name}
+                    <text
+                      x="50%"
+                      y="46%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-muted-foreground text-[12px]"
+                    >
+                      Total
+                    </text>
+                    <text
+                      x="50%"
+                      y="56%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-card-foreground text-[16px] font-semibold"
+                    >
+                      {formatIDR(summary.expenseTotal)}
+                    </text>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="w-full space-y-2">
+                {categoryData.map((category, i) => (
+                  <div
+                    key={category.categoryId}
+                    className="flex items-center justify-between rounded-xl border border-border bg-muted/50 px-3 py-2"
+                    style={{
+                      transform: `rotate(${i % 2 === 0 ? -0.4 : 0.4}deg)`,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: category.color }}
+                      />
+                      <span className="truncate text-sm text-foreground">
+                        {category.name}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-foreground">
+                        {formatIDR(category.total)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {category.percentage.toFixed(0)}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-56 w-full max-w-[280px] rotate-[0.6deg]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={incomeCategoryData}
+                      dataKey="total"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={58}
+                      outerRadius={88}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {incomeCategoryData.map((entry) => (
+                        <Cell
+                          key={entry.categoryId}
+                          fill={entry.color}
+                          stroke="var(--card)"
+                          strokeWidth={3}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => [formatIDR(Number(value)), "Total"]}
+                      contentStyle={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        color: "var(--card-foreground)",
+                      }}
+                      labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
+                      itemStyle={{ fontSize: 12, color: "inherit" }}
+                    />
+                    <text
+                      x="50%"
+                      y="46%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-muted-foreground text-[12px]"
+                    >
+                      Total
+                    </text>
+                    <text
+                      x="50%"
+                      y="56%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-emerald-600 dark:fill-emerald-400 text-[16px] font-semibold"
+                    >
+                      {formatIDR(summary.incomeTotal)}
+                    </text>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="w-full space-y-2">
+                {incomeCategoryData.map((category, i) => (
+                  <div
+                    key={category.categoryId}
+                    className="flex items-center justify-between rounded-xl border border-border bg-muted/50 px-3 py-2"
+                    style={{
+                      transform: `rotate(${i % 2 === 0 ? 0.4 : -0.4}deg)`,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: category.color }}
+                      />
+                      <span className="truncate text-sm text-foreground">
+                        {category.name}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-foreground">
+                        {formatIDR(category.total)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {category.percentage.toFixed(0)}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recent Transactions */}
+      <div className="relative rounded-2xl border border-border bg-card p-4
+        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
+        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+        {/* Tape — top left */}
+        <div className="absolute -top-2 left-6 h-4 w-16 bg-primary/20 border border-primary/30 rounded-sm -rotate-1 z-10" />
+
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Transaksi Terbaru
+          </p>
+        </div>
+
+        {txStatus === "LoadingFirstPage" ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, index) => (
+              <Skeleton key={index} className="h-14 rounded-xl bg-muted" />
+            ))}
+          </div>
+        ) : recentTransactions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada transaksi.</p>
+        ) : (
+          <div className="space-y-2">
+            {recentTransactions.map((tx, i) => (
+              <Link
+                key={tx._id}
+                href={`/expenses/${tx._id}/edit`}
+                className="flex items-center gap-3 rounded-xl border border-border bg-background/60 px-3 py-2.5 transition-colors hover:bg-accent/40"
+                style={{ transform: `rotate(${i % 2 === 0 ? -0.3 : 0.3}deg)` }}
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
+                  {tx.category?.icon ?? "📝"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {tx.category?.name ?? "Tanpa Kategori"}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    {tx.wallet && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {tx.wallet.logo ? (
+                          <Image
+                            src={`/bank-logo/${tx.wallet.logo}`}
+                            alt={tx.wallet.name}
+                            width={12}
+                            height={12}
+                            className="h-3 w-auto object-contain"
+                          />
+                        ) : null}
+                        {tx.wallet.label || tx.wallet.name}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(new Date(tx.date), "d MMM", { locale: idLocale })}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">
-                      {formatIDR(category.total)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {category.percentage.toFixed(0)}%
-                    </p>
-                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bar Chart */}
-      {summary && categoryData.length > 0 && (
-        <div className="relative rounded-2xl border border-border bg-card p-4
-          shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
-          dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
-          <div className="absolute -top-2 right-8 h-4 w-20 bg-accent/50 border border-primary/20 rounded-sm rotate-[1deg] z-10" />
-
-          <div className="flex items-center gap-2 mb-3">
-            <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Peringkat Kategori
-            </p>
-          </div>
-
-          <div className="rotate-[0.5deg]">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart
-                data={categoryData}
-                layout="vertical"
-                margin={{ left: 8, right: 16, top: 4 }}
-              >
-                <CartesianGrid
-                  horizontal={false}
-                  stroke="var(--border)"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.5}
-                />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={80}
-                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(128,128,128,0.08)" }}
-                  formatter={(value) => [formatIDR(Number(value)), "Total"]}
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                    padding: "8px 12px",
-                    color: "var(--card-foreground)",
-                  }}
-                  labelStyle={{ fontWeight: 600, fontSize: 13, color: "inherit" }}
-                  itemStyle={{ fontSize: 12, color: "inherit" }}
-                />
-                <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                  {categoryData.map((entry) => (
-                    <Cell
-                      key={entry.categoryId}
-                      fill={entry.color}
-                      stroke="var(--card)"
-                      strokeWidth={2}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      <div className="relative rounded-2xl border border-border bg-card p-4
-        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
-        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Cicilan Bulan Ini
-          </p>
-        </div>
-
-        {installmentOverview === undefined ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, index) => (
-              <Skeleton key={index} className="h-16 rounded-xl bg-muted" />
-            ))}
-          </div>
-        ) : installmentOverview.activeInstallments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada cicilan aktif bulan ini.</p>
-        ) : (
-          <div className="space-y-3">
-            <div className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Total cicilan bulan ini</p>
-              <p className="mt-1 text-xl font-semibold text-foreground">{formatIDR(installmentOverview.activeTotal)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{installmentOverview.activeCount} cicilan aktif</p>
-            </div>
-
-            {installmentOverview.activeInstallments.map((item) => (
-              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Cicilan ke-{item.installmentNumber} dari {item.installmentCount}
-                      {item.vendor ? ` • ${item.vendor.name}` : ""}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-semibold text-foreground">{formatIDR(item.installmentAmount)}</p>
+                <div className="text-right shrink-0">
+                  <p
+                    className={cn(
+                      "text-sm font-semibold",
+                      tx.direction === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
+                    )}
+                  >
+                    {tx.direction === "income" ? "+" : "-"}{formatIDR(tx.amount)}
+                  </p>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Bunga {item.installmentRate}%</span>
-                  <span>Sisa {item.remainingInstallments} cicilan</span>
-                </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
-      </div>
 
-      <div className="relative rounded-2xl border border-border bg-card p-4
-        shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
-        dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="h-2 w-2 bg-primary/40 rounded-sm rotate-45" />
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Riwayat Cicilan
-          </p>
-        </div>
-
-        {installmentOverview === undefined ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, index) => (
-              <Skeleton key={index} className="h-16 rounded-xl bg-muted" />
-            ))}
-          </div>
-        ) : installmentOverview.history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada transaksi cicilan.</p>
-        ) : (
-          <div className="space-y-3">
-            {installmentOverview.history.map((item) => (
-              <div key={item._id} className="rounded-xl border border-border bg-background/60 px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{item.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {format(new Date(item.date), "d MMM yyyy", { locale: idLocale })}
-                      {item.category ? ` • ${item.category.name}` : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-foreground">{item.installmentCount}x</p>
-                    <p className="text-xs text-muted-foreground">{item.installmentRate}%</p>
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Total {formatIDR(item.totalWithInterest)}</span>
-                  <span>{formatIDR(item.installmentAmount)}/cicilan</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <Link
+          href="/expenses"
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+        >
+          Lihat Semua Transaksi
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       {/* Empty state */}
-      {summary?.byCategory.length === 0 && (
+      {summary && summary.byCategory.length === 0 && summary.byIncomeCategory.length === 0 && (
         <div className="relative rounded-2xl border border-border bg-card py-12 text-center
           shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)]
           dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
           <div className="absolute -top-2 left-1/2 -translate-x-1/2 h-4 w-24 bg-secondary/60 border border-primary/20 rounded-sm -rotate-1 z-10" />
           <p className="text-base font-medium text-foreground">
-            Belum ada pengeluaran bulan ini.
+            Belum ada transaksi bulan ini.
           </p>
           <p className="text-sm mt-1 text-muted-foreground">
             Tap + untuk menambah.

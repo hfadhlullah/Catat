@@ -1,8 +1,16 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function EditExpenseError() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const t = setTimeout(() => router.replace("/expenses"), 800);
+    return () => clearTimeout(t);
+  }, [router]);
+
   return (
     <div className="min-h-screen pb-24">
       <div className="p-4 max-w-lg mx-auto">
@@ -11,12 +19,13 @@ export default function EditExpenseError() {
           <p className="mt-2 text-sm text-muted-foreground">
             Data mungkin sudah dihapus atau Anda tidak memiliki akses.
           </p>
-          <Link
-            href="/expenses"
+          <button
+            type="button"
+            onClick={() => router.push("/expenses")}
             className="mt-4 inline-flex rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Kembali ke transaksi
-          </Link>
+          </button>
         </div>
       </div>
     </div>
