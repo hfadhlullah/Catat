@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   getEqualSplitValues,
@@ -34,7 +34,7 @@ export function useTransactionSplitBill() {
   const [splitParticipants, setSplitParticipants] = useState<SplitParticipant[]>([]);
   const [customSplitName, setCustomSplitName] = useState("");
 
-  function setInitialSplitBill(splitBill?: InitialSplitBill) {
+  const setInitialSplitBill = useCallback((splitBill?: InitialSplitBill) => {
     setSplitBillEnabled(splitBill?.enabled ?? false);
     setSplitMode(splitBill?.mode ?? "equal");
     setSplitParticipants(
@@ -47,7 +47,7 @@ export function useTransactionSplitBill() {
         paidAt: participant.paidAt,
       }))
     );
-  }
+  }, []);
 
   function clearWalletMembersFromSplit() {
     setSplitParticipants((current) => current.filter((participant) => !participant.userId));

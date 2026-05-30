@@ -115,6 +115,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
   const [sheetPrimaryId, setSheetPrimaryId] = useState<string | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const splitBill = useTransactionSplitBill();
+  const setInitialSplitBill = splitBill.setInitialSplitBill;
   const receipt = useTransactionReceipt({
     onAmountExtracted: (amount) => {
       setAmountDisplay(formatRupiah(String(amount)));
@@ -141,12 +142,14 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         headers: { "Content-Type": file.type },
         body: file,
       });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const { storageId } = await res.json();
       await registerUploadedReceipt({ storageId: storageId as Id<"_storage"> });
       return storageId as string;
     },
     extractReceipt: async (storageId) => extractReceiptAction({ storageId: storageId as Id<"_storage"> }),
   });
+  const setInitialReceipt = receipt.setInitialReceipt;
 
   const {
     register,
@@ -178,6 +181,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     selectedDate,
     setValue,
   });
+  const { setRepeatEvery, setRepeatPeriod, setRepeatUntil } = recurring;
 
   useEffect(() => {
     if (mode === "create") {
@@ -203,9 +207,9 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         Boolean(initialExpense.notes) ||
         isInstallment
       );
-      recurring.setRepeatEvery(1);
-      recurring.setRepeatPeriod("month");
-      recurring.setRepeatUntil(null);
+      setRepeatEvery(1);
+      setRepeatPeriod("month");
+      setRepeatUntil(null);
 
       reset({
         amount: initialExpense.amount,
@@ -220,12 +224,12 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         transactionType: initialExpense.transactionType ?? "default",
       });
       setAmountDisplay(formatRupiah(String(initialExpense.amount)));
-      receipt.setInitialReceipt(initialExpense.receiptUrl, initialExpense.receiptStorageId ?? null);
-      splitBill.setInitialSplitBill(initialExpense.splitBill);
+      setInitialReceipt(initialExpense.receiptUrl, initialExpense.receiptStorageId ?? null);
+      setInitialSplitBill(initialExpense.splitBill);
       initializedExpenseRef.current = initialExpense._id;
     }
     initializeFromExpense();
-  }, [initialExpense, mode, receipt, reset, splitBill]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialExpense, mode, reset, setInitialReceipt, setInitialSplitBill, setRepeatEvery, setRepeatPeriod, setRepeatUntil]);
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/\D/g, "");
@@ -657,7 +661,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
                 splitParticipantCount={splitParticipantCount}
                 onAddCustomSplitParticipant={splitBill.addCustomSplitParticipant}
                 onCustomSplitNameChange={splitBill.setCustomSplitName}
-                onSplitBillToggle={() => splitBill.ensureCurrentProfileParticipant(currentProfile, walletMembers ?? [])}
+                onSplitBillToggle={() => splitBill.ensureCurrentProfileParticipant(currentProfile, walletMembers)}
                 onSplitModeChange={splitBill.setSplitMode}
                 onToggleSplitParticipant={splitBill.toggleSplitParticipant}
                 onUpdateSplitParticipant={splitBill.updateSplitParticipant}

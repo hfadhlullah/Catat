@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "sonner";
 
@@ -45,11 +45,11 @@ export function useTransactionReceipt({
     };
   }, [photoPreview]);
 
-  function setInitialReceipt(receiptUrl?: string | null, receiptStorageId?: string | null) {
+  const setInitialReceipt = useCallback((receiptUrl?: string | null, receiptStorageId?: string | null) => {
     setPhoto(null);
     setPhotoPreview(receiptUrl ?? null);
     setStorageId(receiptStorageId ?? null);
-  }
+  }, []);
 
   function applyExtraction(data: ReceiptExtraction) {
     if (data.amount && data.amount > 0) {
@@ -101,7 +101,11 @@ export function useTransactionReceipt({
   }
 
   async function ensureReceiptStorageId() {
-    return storageId ?? (photo ? await uploadReceiptFile(photo) : null);
+    if (storageId) return storageId;
+    if (!photo) return null;
+    const id = await uploadReceiptFile(photo);
+    setStorageId(id);
+    return id;
   }
 
   return {
