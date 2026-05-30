@@ -18,14 +18,18 @@ export const createIncome = mutation({
       throw new ConvexError("Wallet tidak valid");
     }
 
-    return await ctx.db.insert("incomes", {
+    const now = Date.now();
+    return await ctx.db.insert("transactions", {
+      direction: "income",
+      transactionType: "default",
       walletId: args.walletId,
       amount: Math.round(args.amount),
       description: args.description.trim(),
       date: args.date,
       notes: args.notes,
-      receivedBy: profile._id,
-      createdAt: Date.now(),
+      submittedBy: profile._id,
+      createdAt: now,
+      updatedAt: now,
     });
   },
 });
@@ -35,15 +39,15 @@ export const listRecentIncome = query({
   handler: async (ctx) => {
     const profile = await getCurrentProfile(ctx);
     const incomes = await ctx.db
-      .query("incomes")
-      .withIndex("by_received_by", (q) => q.eq("receivedBy", profile._id))
+      .query("transactions")
+      .withIndex("by_submitted_by_direction", (q) => q.eq("submittedBy", profile._id).eq("direction", "income"))
       .order("desc")
       .take(10);
 
     return await Promise.all(
       incomes.map(async (income) => {
-        const wallet = await ctx.db.get(income.walletId);
-        return { ...income, wallet };
+        const wallet = income.walletId ? await ctx.db.get(income.walletId) : null;
+        return { ...income, wallet, receivedBy: income.submittedBy };
       })
     );
   },
@@ -70,15 +74,15 @@ export const listWalletIncomes = query({
     }
 
     const incomes = await ctx.db
-      .query("incomes")
-      .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+      .query("transactions")
+      .withIndex("by_wallet_direction", (q) => q.eq("walletId", args.walletId).eq("direction", "income"))
       .order("desc")
       .take(10);
 
     return await Promise.all(
       incomes.map(async (income) => {
-        const receivedBy = await ctx.db.get(income.receivedBy);
-        return { ...income, receivedByName: receivedBy?.name ?? "User" };
+        const receivedBy = await ctx.db.get(income.submittedBy);
+        return { ...income, receivedBy: income.submittedBy, receivedByName: receivedBy?.name ?? "User" };
       })
     );
   },

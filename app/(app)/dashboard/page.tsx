@@ -45,11 +45,11 @@ export default function DashboardPage() {
   const walletOverview = useQuery(api.wallets.getWalletOverview, { period });
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const effectiveSelectedWalletId = selectedWalletId || walletOverview?.wallets[0]?._id || "";
-  const summary = useQuery(api.expenses.getExpenseSummary, {
+  const summary = useQuery(api.transactions.getTransactionSummary, {
     period,
     walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
   });
-  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, {
+  const installmentOverview = useQuery(api.transactions.getInstallmentOverview, {
     period,
     walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
   });
@@ -69,8 +69,8 @@ export default function DashboardPage() {
       ...category,
       color: category.color ?? COLORS[index % COLORS.length],
       percentage:
-        summary && summary.total > 0
-          ? (category.total / summary.total) * 100
+        summary && summary.expenseTotal > 0
+          ? (category.total / summary.expenseTotal) * 100
           : 0,
     }));
 
@@ -254,7 +254,7 @@ export default function DashboardPage() {
           <Skeleton className="mt-2 h-10 w-48 bg-muted" />
         ) : (
           <p className="mt-2 text-3xl font-semibold text-card-foreground tracking-tight">
-            {formatIDR(summary.total)}
+            {formatIDR(summary.expenseTotal)}
           </p>
         )}
         <div className="mt-3 flex items-center gap-2">
@@ -263,6 +263,12 @@ export default function DashboardPage() {
             {summary?.count ?? "–"} transaksi
           </p>
         </div>
+        {summary && (
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>Income {formatIDR(summary.incomeTotal)}</span>
+            <span>Net {formatIDR(summary.net)}</span>
+          </div>
+        )}
 
         <div className="mt-4 border-t border-dashed border-border pt-2 flex justify-between items-center">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
@@ -366,7 +372,7 @@ export default function DashboardPage() {
                     dominantBaseline="middle"
                     className="fill-card-foreground text-[16px] font-semibold"
                   >
-                    {formatIDR(summary.total)}
+                    {formatIDR(summary.expenseTotal)}
                   </text>
                 </PieChart>
               </ResponsiveContainer>

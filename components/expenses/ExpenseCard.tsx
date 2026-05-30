@@ -23,6 +23,8 @@ import {
 interface ExpenseCardProps {
   expense: {
     _id: string;
+    direction: "expense" | "income";
+    transactionType?: string;
     amount: number;
     installmentCount?: number;
     installmentRate?: number;
@@ -39,13 +41,14 @@ interface ExpenseCardProps {
 }
 
 export function ExpenseCard({ expense }: ExpenseCardProps) {
-  const deleteExpense = useMutation(api.expenses.deleteExpense);
+  const deleteExpense = useMutation(api.transactions.deleteTransaction);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const installmentCount = expense.installmentCount ?? 1;
   const installmentRate = expense.installmentRate ?? 0;
   const totalWithInterest = Math.round(expense.amount * (1 + installmentRate / 100));
   const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
+  const isExpense = expense.direction === "expense";
 
   async function handleDelete() {
     if (!confirming) {
@@ -55,8 +58,8 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
     }
     setDeleting(true);
     try {
-      await deleteExpense({ id: expense._id as Id<"expenses"> });
-      toast.success("Pengeluaran dihapus");
+      await deleteExpense({ id: expense._id as Id<"transactions"> });
+      toast.success("Transaksi dihapus");
     } catch {
       toast.error("Gagal menghapus");
       setDeleting(false);
@@ -75,9 +78,22 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <p className="truncate font-medium text-card-foreground">{expense.description}</p>
-            <p className="shrink-0 font-semibold text-card-foreground">{formatIDR(expense.amount)}</p>
+            <p className={cn("shrink-0 font-semibold", isExpense ? "text-card-foreground" : "text-emerald-600 dark:text-emerald-400")}>
+              {isExpense ? "-" : "+"}{formatIDR(expense.amount)}
+            </p>
           </div>
           <div className="flex gap-2 mt-1 flex-wrap">
+            <span className={cn(
+              "text-xs px-2 py-0.5 rounded-full",
+              isExpense ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            )}>
+              {isExpense ? "Pengeluaran" : "Pemasukan"}
+            </span>
+            {expense.transactionType && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground capitalize">
+                {expense.transactionType}
+              </span>
+            )}
             {expense.category && (
               <span
                 className="text-xs px-2 py-0.5 rounded-full"
@@ -98,7 +114,7 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
             {expense.submitterName && expense.isOwn === false && (
               <span className="text-xs font-medium text-primary">Dibuat oleh {expense.submitterName}</span>
             )}
-            {installmentCount > 1 && (
+            {isExpense && installmentCount > 1 && (
               <span className="text-xs text-muted-foreground">
                 {installmentCount}x • {installmentRate}% • {formatIDR(perInstallment)}/cicilan
               </span>
@@ -109,12 +125,12 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
           </p>
         </div>
         {expense.receiptUrl && (
-          <Dialog>
+            <Dialog>
             <DialogTrigger asChild>
               <button type="button" className="shrink-0">
                 <Image
                   src={expense.receiptUrl}
-                  alt={`Nota untuk ${expense.description}`}
+                   alt={`Lampiran untuk ${expense.description}`}
                   width={56}
                   height={56}
                   className="h-14 w-14 rounded-lg border border-border object-cover"
@@ -122,14 +138,14 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-[min(92vw,40rem)] border-border bg-popover p-3 text-popover-foreground sm:rounded-2xl">
-              <DialogTitle className="sr-only">Preview nota</DialogTitle>
-              <DialogDescription className="sr-only">
-                Preview gambar nota untuk {expense.description}
-              </DialogDescription>
+               <DialogTitle className="sr-only">Preview lampiran</DialogTitle>
+               <DialogDescription className="sr-only">
+                 Preview gambar lampiran untuk {expense.description}
+               </DialogDescription>
               <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <Image
                   src={expense.receiptUrl}
-                  alt={`Nota untuk ${expense.description}`}
+                   alt={`Lampiran untuk ${expense.description}`}
                   width={1200}
                   height={1200}
                   className="h-auto max-h-[80vh] w-full object-contain"
@@ -143,7 +159,7 @@ export function ExpenseCard({ expense }: ExpenseCardProps) {
       {(expense.isOwn === undefined || expense.isOwn) && (
         <div className="px-4 pb-3 flex justify-end gap-2">
           <Link
-            href={`/expenses/${expense._id}/edit`}
+             href={`/expenses/${expense._id}/edit`}
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-foreground"
           >
             <Pencil className="w-3.5 h-3.5" />

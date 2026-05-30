@@ -38,17 +38,17 @@ function useLast6Months(endDate: Date, walletId?: string) {
   const args3 = { period: periods[3], walletId: wid };
   const args4 = { period: periods[4], walletId: wid };
   const args5 = { period: periods[5], walletId: wid };
-  const q0 = useQuery(api.expenses.getExpenseSummary, args0);
-  const q1 = useQuery(api.expenses.getExpenseSummary, args1);
-  const q2 = useQuery(api.expenses.getExpenseSummary, args2);
-  const q3 = useQuery(api.expenses.getExpenseSummary, args3);
-  const q4 = useQuery(api.expenses.getExpenseSummary, args4);
-  const q5 = useQuery(api.expenses.getExpenseSummary, args5);
+  const q0 = useQuery(api.transactions.getTransactionSummary, args0);
+  const q1 = useQuery(api.transactions.getTransactionSummary, args1);
+  const q2 = useQuery(api.transactions.getTransactionSummary, args2);
+  const q3 = useQuery(api.transactions.getTransactionSummary, args3);
+  const q4 = useQuery(api.transactions.getTransactionSummary, args4);
+  const q5 = useQuery(api.transactions.getTransactionSummary, args5);
 
   return [q0, q1, q2, q3, q4, q5].map((q, i) => ({
     period: periods[i],
     label: format(subMonths(endDate, 5 - i), "MMM", { locale: idLocale }),
-    total: q?.total ?? 0,
+    total: q?.expenseTotal ?? 0,
     loading: q === undefined,
   }));
 }
@@ -60,11 +60,11 @@ export default function ReportsPage() {
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
   const effectiveSelectedWalletId = selectedWalletId || walletOverview?.wallets[0]?._id || "";
   const selectedWalletIdCast = effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined;
-  const summary = useQuery(api.expenses.getExpenseSummary, {
+  const summary = useQuery(api.transactions.getTransactionSummary, {
     period,
     walletId: selectedWalletIdCast,
   });
-  const installmentOverview = useQuery(api.expenses.getInstallmentOverview, {
+  const installmentOverview = useQuery(api.transactions.getInstallmentOverview, {
     period,
     walletId: selectedWalletIdCast,
   });
@@ -162,7 +162,7 @@ export default function ReportsPage() {
         {isLoading ? (
           <Skeleton className="mt-2 h-10 w-48 bg-muted" />
         ) : (
-          <p className="mt-2 text-3xl font-semibold text-card-foreground tracking-tight">{formatIDR(summary.total)}</p>
+          <p className="mt-2 text-3xl font-semibold text-card-foreground tracking-tight">{formatIDR(summary.expenseTotal)}</p>
         )}
         {isLoading ? (
           <Skeleton className="mt-2 h-4 w-24 bg-muted" />
@@ -236,7 +236,7 @@ export default function ReportsPage() {
             {[...summary.byCategory]
               .sort((a, b) => b.total - a.total)
               .map((cat, i) => {
-                const pct = summary.total > 0 ? (cat.total / summary.total) * 100 : 0;
+                const pct = summary.expenseTotal > 0 ? (cat.total / summary.expenseTotal) * 100 : 0;
                 const color = cat.color ?? COLORS[i % COLORS.length];
                 return (
                   <div key={cat.categoryId}>

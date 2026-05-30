@@ -24,14 +24,16 @@ export default function ExpensesPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const wallets = useQuery(api.wallets.listWallets);
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+  const [directionFilter, setDirectionFilter] = useState<"all" | "expense" | "income">("all");
   const effectiveSelectedWalletId = selectedWalletId || wallets?.[0]?._id || "";
 
   const { results, status, loadMore } = usePaginatedQuery(
-    api.expenses.listExpenses,
+    api.transactions.listTransactions,
     {
       startDate: dateRange?.from ? startOfDay(dateRange.from).getTime() : undefined,
       endDate: dateRange?.to ? endOfDay(dateRange.to).getTime() : undefined,
       walletId: effectiveSelectedWalletId ? (effectiveSelectedWalletId as Id<"wallets">) : undefined,
+      direction: directionFilter === "all" ? undefined : directionFilter,
     },
     { initialNumItems: 20 }
   );
@@ -69,8 +71,30 @@ export default function ExpensesPage() {
 
       <div className="pt-4 flex items-center gap-2">
         <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
-          Pengeluaran
+          Transaksi
         </span>
+      </div>
+
+      <div className="flex gap-2">
+        {[
+          { value: "all", label: "Semua" },
+          { value: "expense", label: "Pengeluaran" },
+          { value: "income", label: "Pemasukan" },
+        ].map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setDirectionFilter(item.value as typeof directionFilter)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150",
+              directionFilter === item.value
+                ? "border-transparent bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:border-primary/30"
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {wallets && wallets.length > 0 && (
@@ -221,10 +245,10 @@ export default function ExpensesPage() {
           dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
           <div className="absolute -top-2 left-1/2 -translate-x-1/2 h-4 w-24 bg-secondary/60 border border-primary/20 rounded-sm -rotate-1 z-10" />
           <p className="text-base font-medium text-foreground">
-            {hasDateFilter ? "Tidak ada pengeluaran pada rentang tanggal ini." : selectedWalletId ? "Belum ada pengeluaran di wallet ini." : "Belum ada pengeluaran."}
-          </p>
-        </div>
-      )}
+             {hasDateFilter ? "Tidak ada transaksi pada rentang tanggal ini." : selectedWalletId ? "Belum ada transaksi di wallet ini." : "Belum ada transaksi."}
+           </p>
+         </div>
+       )}
 
       <div className="space-y-3">
         {results.map((expense) => (

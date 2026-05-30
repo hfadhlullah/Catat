@@ -14,7 +14,7 @@ const leftItems = [
 ];
 
 const rightItems = [
-  { href: "/expenses", icon: "solar:bill-list-bold-duotone", label: "Pengeluaran" },
+  { href: "/expenses", icon: "solar:bill-list-bold-duotone", label: "Transaksi" },
   { href: "/profile", icon: "solar:user-circle-bold-duotone", label: "Profil" },
 ];
 
@@ -36,6 +36,11 @@ function NavItem({ href, icon, label, isActive }: { href: string; icon: string; 
 export function BottomNav() {
   const pathname = usePathname();
 
+  const isExpenseForm =
+    pathname === "/expenses/new" || /^\/expenses\/[^/]+\/edit$/.test(pathname);
+
+  if (isExpenseForm) return null;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-6">
       <div className="mx-auto grid max-w-lg grid-cols-[1fr_auto_1fr] items-center rounded-2xl border border-border/70 bg-card/95 px-2 py-2.5 shadow-lg backdrop-blur-md">
@@ -48,7 +53,7 @@ export function BottomNav() {
         <div className="flex justify-center">
           <Link
             href="/expenses/new"
-            aria-label="Tambah pengeluaran"
+            aria-label="Tambah transaksi"
             className="flex h-13 w-13 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30 transition-all duration-150 hover:bg-primary/90 active:scale-95"
           >
             <span className="text-primary-foreground text-3xl leading-none font-medium">+</span>

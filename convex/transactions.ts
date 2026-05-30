@@ -1,0 +1,693 @@
+import { ConvexError, v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+import { getAccessibleProfileIds, getCurrentProfile } from "./profile";
+
+async function hasWalletAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
+  const wallet = await ctx.db.get(walletId);
+  if (!wallet || !wallet.isActive) return false;
+  if (wallet.createdBy === profileId) return true;
+
+  const member = await ctx.db
+    .query("walletMembers")
+    .withIndex("by_wallet_user", (q) => q.eq("walletId", walletId).eq("userId", profileId))
+    .unique();
+
+  return !!member;
+}
+
+function getInstallmentSnapshot(transaction: {
+  amount: number;
+  installmentCount?: number;
+  installmentRate?: number;
+}) {
+  const installmentCount = transaction.installmentCount ?? 1;
+  const installmentRate = transaction.installmentRate ?? 0;
+  const totalWithInterest = Math.round(transaction.amount * (1 + installmentRate / 100));
+  const installmentAmount = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
+
+  return {
+    installmentCount,
+    installmentRate,
+    totalWithInterest,
+    installmentAmount,
+  };
+}
+
+function getInstallmentPosition(transactionDate: number, period: string, installmentCount: number) {
+  const [year, month] = period.split("-").map(Number);
+  const transactionMonth = new Date(transactionDate);
+  const monthDiff =
+    (year - transactionMonth.getFullYear()) * 12 +
+    (month - 1 - transactionMonth.getMonth());
+
+  const isActive = monthDiff >= 0 && monthDiff < installmentCount;
+  return {
+    monthDiff,
+    isActive,
+    installmentNumber: isActive ? monthDiff + 1 : null,
+    remainingInstallments: isActive ? installmentCount - monthDiff - 1 : null,
+  };
+}
+
+async function validateReceiptOwnership(
+  ctx: MutationCtx,
+  profileId: Id<"userProfiles">,
+  storageId: Id<"_storage"> | undefined,
+  options?: {
+    allowMissingForExistingTransactionId?: Id<"transactions">;
+  }
+) {
+  if (!storageId) {
+    return null;
+  }
+
+  const receipt = await ctx.db
+    .query("uploadedReceipts")
+    .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+    .unique();
+
+  if (receipt) {
+    if (receipt.ownerProfileId !== profileId) {
+      throw new ConvexError("Unauthorized receipt");
+    }
+    return receipt;
+  }
+
+  if (options?.allowMissingForExistingTransactionId) {
+    const transaction = await ctx.db.get(options.allowMissingForExistingTransactionId);
+    if (transaction?.submittedBy === profileId && transaction.receiptStorageId === storageId) {
+      return null;
+    }
+  }
+
+  throw new ConvexError("Receipt tidak valid");
+}
+
+async function validateTransactionPayload(
+  ctx: MutationCtx,
+  profileId: Id<"userProfiles">,
+  args: {
+    direction: "expense" | "income";
+    categoryId?: Id<"categories">;
+    walletId?: Id<"wallets">;
+    vendorId?: Id<"vendors">;
+    installmentCount?: number;
+    installmentRate?: number;
+  }
+) {
+  const accessibleIds = await getAccessibleProfileIds(ctx, profileId);
+
+  if (args.direction === "expense") {
+    if (!args.categoryId) {
+      throw new ConvexError("Kategori wajib dipilih");
+    }
+
+    const category = await ctx.db.get(args.categoryId);
+    if (
+      !category ||
+      !category.isActive ||
+      (!category.isDefault && !accessibleIds.includes(category.createdBy as string))
+    ) {
+      throw new ConvexError("Kategori tidak valid");
+    }
+
+    if (category.directionScope === "income") {
+      throw new ConvexError("Kategori hanya untuk pemasukan");
+    }
+
+    if (args.vendorId) {
+      const vendor = await ctx.db.get(args.vendorId);
+      if (!vendor || !vendor.isActive || !accessibleIds.includes(vendor.createdBy as string)) {
+        throw new ConvexError("Vendor tidak valid");
+      }
+    }
+
+    if (args.installmentCount !== undefined) {
+      if (!Number.isInteger(args.installmentCount) || args.installmentCount < 1) {
+        throw new ConvexError("Cicilan harus minimal 1x");
+      }
+    }
+
+    if (args.installmentRate !== undefined && args.installmentRate < 0) {
+      throw new ConvexError("Bunga cicilan tidak boleh negatif");
+    }
+  } else {
+    if (!args.walletId) {
+      throw new ConvexError("Wallet wajib dipilih untuk pemasukan");
+    }
+    if (args.categoryId || args.vendorId) {
+      throw new ConvexError("Pemasukan tidak memakai kategori atau vendor");
+    }
+    if (args.installmentCount && args.installmentCount > 1) {
+      throw new ConvexError("Pemasukan tidak mendukung cicilan");
+    }
+    if (args.installmentRate && args.installmentRate > 0) {
+      throw new ConvexError("Pemasukan tidak mendukung bunga cicilan");
+    }
+  }
+
+  if (args.walletId) {
+    const hasAccess = await hasWalletAccess(ctx, profileId, args.walletId);
+    if (!hasAccess) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+  }
+}
+
+function monthRange(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  return {
+    start: new Date(year, month - 1, 1).getTime(),
+    end: new Date(year, month, 1).getTime(),
+  };
+}
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const registerUploadedReceipt = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    const existing = await ctx.db
+      .query("uploadedReceipts")
+      .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
+      .unique();
+
+    if (existing) {
+      if (existing.ownerProfileId !== profile._id) {
+        throw new ConvexError("Unauthorized receipt");
+      }
+      return existing._id;
+    }
+
+    return await ctx.db.insert("uploadedReceipts", {
+      storageId: args.storageId,
+      ownerProfileId: profile._id,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const createTransaction = mutation({
+  args: {
+    direction: v.union(v.literal("expense"), v.literal("income")),
+    transactionType: v.optional(
+      v.union(
+        v.literal("default"),
+        v.literal("upcoming"),
+        v.literal("subscription"),
+        v.literal("repetitive"),
+        v.literal("lent"),
+        v.literal("borrowed")
+      )
+    ),
+    amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
+    description: v.string(),
+    date: v.number(),
+    categoryId: v.optional(v.id("categories")),
+    walletId: v.optional(v.id("wallets")),
+    vendorId: v.optional(v.id("vendors")),
+    notes: v.optional(v.string()),
+    receiptStorageId: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    await validateTransactionPayload(ctx, profile._id, args);
+    const receipt = await validateReceiptOwnership(ctx, profile._id, args.receiptStorageId);
+
+    const now = Date.now();
+    const transactionId = await ctx.db.insert("transactions", {
+      direction: args.direction,
+      transactionType: args.transactionType ?? "default",
+      amount: Math.round(args.amount),
+      installmentCount: args.direction === "expense" ? (args.installmentCount ?? 1) : undefined,
+      installmentRate: args.direction === "expense" && args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
+      description: args.description.trim(),
+      date: args.date,
+      categoryId: args.direction === "expense" ? args.categoryId : undefined,
+      walletId: args.walletId,
+      vendorId: args.direction === "expense" ? args.vendorId : undefined,
+      submittedBy: profile._id,
+      receiptStorageId: args.direction === "expense" ? args.receiptStorageId : undefined,
+      notes: args.notes,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    if (receipt) {
+      await ctx.db.patch(receipt._id, { attachedTransactionId: transactionId });
+    }
+
+    return transactionId;
+  },
+});
+
+export const getTransactionById = query({
+  args: { id: v.id("transactions") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const transaction = await ctx.db.get(args.id);
+    if (!transaction) throw new ConvexError("Not found");
+
+    const isOwner = transaction.submittedBy === profile._id;
+    let isShared = false;
+    if (transaction.walletId) {
+      isShared = await hasWalletAccess(ctx, profile._id, transaction.walletId);
+    }
+    if (!isOwner && !isShared) throw new ConvexError("Unauthorized");
+
+    const category = transaction.categoryId ? await ctx.db.get(transaction.categoryId) : null;
+    const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
+    const wallet = transaction.walletId ? await ctx.db.get(transaction.walletId) : null;
+    const receiptUrl = transaction.receiptStorageId ? await ctx.storage.getUrl(transaction.receiptStorageId) : null;
+
+    return { ...transaction, category, vendor, wallet, receiptUrl };
+  },
+});
+
+export const updateTransaction = mutation({
+  args: {
+    id: v.id("transactions"),
+    direction: v.union(v.literal("expense"), v.literal("income")),
+    transactionType: v.optional(
+      v.union(
+        v.literal("default"),
+        v.literal("upcoming"),
+        v.literal("subscription"),
+        v.literal("repetitive"),
+        v.literal("lent"),
+        v.literal("borrowed")
+      )
+    ),
+    amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
+    description: v.string(),
+    date: v.number(),
+    categoryId: v.optional(v.id("categories")),
+    walletId: v.optional(v.id("wallets")),
+    vendorId: v.optional(v.id("vendors")),
+    notes: v.optional(v.string()),
+    receiptStorageId: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const transaction = await ctx.db.get(args.id);
+    if (!transaction) throw new ConvexError("Not found");
+    if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
+
+    await validateTransactionPayload(ctx, profile._id, args);
+    const receipt = await validateReceiptOwnership(ctx, profile._id, args.receiptStorageId, {
+      allowMissingForExistingTransactionId: transaction._id,
+    });
+
+    const previousReceiptStorageId = transaction.receiptStorageId;
+
+    await ctx.db.patch(args.id, {
+      direction: args.direction,
+      transactionType: args.transactionType ?? transaction.transactionType,
+      amount: Math.round(args.amount),
+      installmentCount: args.direction === "expense" ? (args.installmentCount ?? 1) : undefined,
+      installmentRate: args.direction === "expense" && args.installmentRate ? Math.round(args.installmentRate * 100) / 100 : 0,
+      description: args.description.trim(),
+      date: args.date,
+      categoryId: args.direction === "expense" ? args.categoryId : undefined,
+      walletId: args.walletId,
+      vendorId: args.direction === "expense" ? args.vendorId : undefined,
+      notes: args.notes,
+      receiptStorageId: args.direction === "expense" ? args.receiptStorageId : undefined,
+      updatedAt: Date.now(),
+    });
+
+    if (receipt) {
+      await ctx.db.patch(receipt._id, { attachedTransactionId: args.id });
+    }
+
+    if (previousReceiptStorageId && previousReceiptStorageId !== args.receiptStorageId) {
+      await ctx.storage.delete(previousReceiptStorageId);
+
+      const previousReceipt = await ctx.db
+        .query("uploadedReceipts")
+        .withIndex("by_storage", (q) => q.eq("storageId", previousReceiptStorageId))
+        .unique();
+
+      if (previousReceipt) {
+        await ctx.db.delete(previousReceipt._id);
+      }
+    }
+  },
+});
+
+export const listTransactions = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    walletId: v.optional(v.id("wallets")),
+    direction: v.optional(v.union(v.literal("expense"), v.literal("income"))),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    let result;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
+
+      let transactionsQuery = ctx.db
+        .query("transactions")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .order("desc");
+
+      if (args.startDate !== undefined || args.endDate !== undefined || args.direction !== undefined) {
+        transactionsQuery = transactionsQuery.filter((q) => {
+          const startAndEnd =
+            args.startDate !== undefined && args.endDate !== undefined
+              ? q.and(q.gte(q.field("date"), args.startDate), q.lte(q.field("date"), args.endDate))
+              : args.startDate !== undefined
+                ? q.gte(q.field("date"), args.startDate)
+                : args.endDate !== undefined
+                  ? q.lte(q.field("date"), args.endDate)
+                  : undefined;
+
+          if (args.direction !== undefined && startAndEnd) {
+            return q.and(startAndEnd, q.eq(q.field("direction"), args.direction));
+          }
+          if (args.direction !== undefined) {
+            return q.eq(q.field("direction"), args.direction);
+          }
+          return startAndEnd!;
+        });
+      }
+
+      result = await transactionsQuery.paginate(args.paginationOpts);
+    } else {
+      let transactionsQuery = ctx.db
+        .query("transactions")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .order("desc");
+
+      if (args.startDate !== undefined || args.endDate !== undefined || args.direction !== undefined) {
+        transactionsQuery = transactionsQuery.filter((q) => {
+          const startAndEnd =
+            args.startDate !== undefined && args.endDate !== undefined
+              ? q.and(q.gte(q.field("date"), args.startDate), q.lte(q.field("date"), args.endDate))
+              : args.startDate !== undefined
+                ? q.gte(q.field("date"), args.startDate)
+                : args.endDate !== undefined
+                  ? q.lte(q.field("date"), args.endDate)
+                  : undefined;
+
+          if (args.direction !== undefined && startAndEnd) {
+            return q.and(startAndEnd, q.eq(q.field("direction"), args.direction));
+          }
+          if (args.direction !== undefined) {
+            return q.eq(q.field("direction"), args.direction);
+          }
+          return startAndEnd!;
+        });
+      }
+
+      result = await transactionsQuery.paginate(args.paginationOpts);
+    }
+
+    const page = await Promise.all(
+      result.page.map(async (transaction) => {
+        const category = transaction.categoryId ? await ctx.db.get(transaction.categoryId) : null;
+        const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
+        const wallet = transaction.walletId ? await ctx.db.get(transaction.walletId) : null;
+        const receiptUrl = transaction.receiptStorageId ? await ctx.storage.getUrl(transaction.receiptStorageId) : null;
+        const submitter = await ctx.db.get(transaction.submittedBy);
+
+        return {
+          ...transaction,
+          category,
+          vendor,
+          wallet,
+          receiptUrl,
+          submitterName: submitter?.name ?? "User",
+          isOwn: transaction.submittedBy === profile._id,
+        };
+      })
+    );
+
+    return { ...result, page };
+  },
+});
+
+export const deleteTransaction = mutation({
+  args: { id: v.id("transactions") },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const transaction = await ctx.db.get(args.id);
+    if (!transaction) throw new ConvexError("Not found");
+    if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
+
+    if (transaction.legacyExpenseId) {
+      const legacyExpense = await ctx.db.get(transaction.legacyExpenseId);
+      if (legacyExpense) {
+        await ctx.db.delete(transaction.legacyExpenseId);
+      }
+    }
+
+    if (transaction.legacyIncomeId) {
+      const legacyIncome = await ctx.db.get(transaction.legacyIncomeId);
+      if (legacyIncome) {
+        await ctx.db.delete(transaction.legacyIncomeId);
+      }
+    }
+
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const getTransactionSummary = query({
+  args: { period: v.string(), walletId: v.optional(v.id("wallets")) },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const { start, end } = monthRange(args.period);
+
+    let transactions;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
+      transactions = await ctx.db
+        .query("transactions")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .filter((q) => q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end)))
+        .collect();
+    } else {
+      transactions = await ctx.db
+        .query("transactions")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .filter((q) => q.and(q.gte(q.field("date"), start), q.lt(q.field("date"), end)))
+        .collect();
+    }
+
+    const expenseTransactions = transactions.filter((item) => item.direction === "expense");
+    const incomeTransactions = transactions.filter((item) => item.direction === "income");
+    const expenseTotal = expenseTransactions.reduce((sum, item) => sum + item.amount, 0);
+    const incomeTotal = incomeTransactions.reduce((sum, item) => sum + item.amount, 0);
+
+    const byCategoryMap = new Map<string, number>();
+    for (const transaction of expenseTransactions) {
+      if (!transaction.categoryId) continue;
+      byCategoryMap.set(transaction.categoryId, (byCategoryMap.get(transaction.categoryId) ?? 0) + transaction.amount);
+    }
+
+    const byCategory = await Promise.all(
+      Array.from(byCategoryMap.entries()).map(async ([categoryId, total]) => {
+        const category = await ctx.db.get(categoryId as Id<"categories">);
+        return {
+          categoryId,
+          name: category?.name ?? "Unknown",
+          total,
+          color: category?.color,
+        };
+      })
+    );
+
+    return {
+      count: transactions.length,
+      expenseCount: expenseTransactions.length,
+      incomeCount: incomeTransactions.length,
+      expenseTotal,
+      incomeTotal,
+      net: incomeTotal - expenseTotal,
+      byCategory,
+    };
+  },
+});
+
+export const getInstallmentOverview = query({
+  args: { period: v.string(), walletId: v.optional(v.id("wallets")) },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    let transactions;
+    if (args.walletId) {
+      const hasAccess = await hasWalletAccess(ctx, profile._id, args.walletId);
+      if (!hasAccess) throw new ConvexError("Wallet tidak valid");
+      transactions = await ctx.db
+        .query("transactions")
+        .withIndex("by_wallet", (q) => q.eq("walletId", args.walletId))
+        .order("desc")
+        .collect();
+    } else {
+      transactions = await ctx.db
+        .query("transactions")
+        .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+        .order("desc")
+        .collect();
+    }
+
+    const installmentTransactions = transactions.filter(
+      (transaction) => transaction.direction === "expense" && (transaction.installmentCount ?? 1) > 1
+    );
+
+    const activeInstallments = await Promise.all(
+      installmentTransactions.map(async (transaction) => {
+        const snapshot = getInstallmentSnapshot(transaction);
+        const position = getInstallmentPosition(transaction.date, args.period, snapshot.installmentCount);
+        if (!position.isActive) return null;
+
+        const category = transaction.categoryId ? await ctx.db.get(transaction.categoryId) : null;
+        const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
+
+        return {
+          ...transaction,
+          category,
+          vendor,
+          ...snapshot,
+          installmentNumber: position.installmentNumber,
+          remainingInstallments: position.remainingInstallments,
+        };
+      })
+    );
+
+    const history = await Promise.all(
+      installmentTransactions.slice(0, 10).map(async (transaction) => {
+        const category = transaction.categoryId ? await ctx.db.get(transaction.categoryId) : null;
+        const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
+        return {
+          ...transaction,
+          category,
+          vendor,
+          ...getInstallmentSnapshot(transaction),
+        };
+      })
+    );
+
+    const activeItems = activeInstallments.filter((item) => item !== null);
+    const activeTotal = activeItems.reduce((sum, item) => sum + item.installmentAmount, 0);
+
+    return {
+      activeTotal,
+      activeCount: activeItems.length,
+      activeInstallments: activeItems,
+      history,
+    };
+  },
+});
+
+export const migrateLegacyData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const profile = await getCurrentProfile(ctx);
+
+    const expenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_submitted_by", (q) => q.eq("submittedBy", profile._id))
+      .collect();
+    const incomes = await ctx.db
+      .query("incomes")
+      .withIndex("by_received_by", (q) => q.eq("receivedBy", profile._id))
+      .collect();
+
+    let migratedExpenses = 0;
+    let migratedIncomes = 0;
+
+    for (const expense of expenses) {
+      const existing = await ctx.db
+        .query("transactions")
+        .withIndex("by_legacy_expense", (q) => q.eq("legacyExpenseId", expense._id))
+        .unique();
+      if (existing) continue;
+
+      const transactionId = await ctx.db.insert("transactions", {
+        direction: "expense",
+        transactionType: "default",
+        amount: expense.amount,
+        installmentCount: expense.installmentCount ?? 1,
+        installmentRate: expense.installmentRate ?? 0,
+        description: expense.description,
+        date: expense.date,
+        categoryId: expense.categoryId,
+        walletId: expense.walletId,
+        vendorId: expense.vendorId,
+        submittedBy: expense.submittedBy,
+        receiptStorageId: expense.receiptStorageId,
+        notes: expense.notes,
+        legacyExpenseId: expense._id,
+        createdAt: expense.createdAt,
+        updatedAt: expense.updatedAt,
+      });
+
+      if (expense.receiptStorageId) {
+        const receipt = await ctx.db
+          .query("uploadedReceipts")
+          .withIndex("by_storage", (q) => q.eq("storageId", expense.receiptStorageId!))
+          .unique();
+        if (receipt) {
+          await ctx.db.patch(receipt._id, { attachedTransactionId: transactionId });
+        }
+      }
+
+      migratedExpenses += 1;
+    }
+
+    for (const income of incomes) {
+      const existing = await ctx.db
+        .query("transactions")
+        .withIndex("by_legacy_income", (q) => q.eq("legacyIncomeId", income._id))
+        .unique();
+      if (existing) continue;
+
+      await ctx.db.insert("transactions", {
+        direction: "income",
+        transactionType: "default",
+        amount: income.amount,
+        description: income.description,
+        date: income.date,
+        walletId: income.walletId,
+        submittedBy: income.receivedBy,
+        notes: income.notes,
+        legacyIncomeId: income._id,
+        createdAt: income.createdAt,
+        updatedAt: income.createdAt,
+      });
+
+      migratedIncomes += 1;
+    }
+
+    return {
+      migratedExpenses,
+      migratedIncomes,
+      totalTransactions: migratedExpenses + migratedIncomes,
+    };
+  },
+});

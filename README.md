@@ -108,6 +108,8 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run build    # Production build
 npm start        # Start production server (after build)
 npm run lint     # ESLint
+npm run migrate:transactions         # One-time legacy backfill
+npm run migrate:transactions:status  # Check backfill status
 ```
 
 ---
@@ -128,3 +130,34 @@ Set deployment URL to `http://127.0.0.1:3210` if prompted.
 
 - This uses **Next.js 16** which has breaking changes from earlier versions. Check `node_modules/next/dist/docs/` before modifying Next.js-specific code.
 - Convex data persists in a Docker volume (`data`). To reset: `docker compose down -v`.
+
+## Coolify Migration
+
+Safe rollout for the new `transactions` table:
+
+1. Deploy the new version first.
+2. Keep old `expenses` and `incomes` tables untouched.
+3. Run `npm run migrate:transactions:status` and confirm pending counts.
+4. Run `npm run migrate:transactions` once.
+5. Run `npm run migrate:transactions:status` again and confirm pending counts are `0`.
+6. Only after that, let users use the new transaction UI.
+
+Why this is safe:
+- legacy rows are copied, not overwritten
+- migrated rows keep `legacyExpenseId` / `legacyIncomeId`
+- expense relations stay linked to wallet, category, vendor, receipt
+- income relations stay linked to wallet and submitter
+
+Recommended Coolify post-deploy command:
+
+```bash
+npm run migrate:transactions
+```
+
+Recommended pre-check command:
+
+```bash
+npm run migrate:transactions:status
+```
+
+Do not delete the old `expenses` or `incomes` tables until you have verified the migrated totals in production.

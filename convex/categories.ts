@@ -1,7 +1,44 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { getAccessibleProfileIds } from "./profile";
+
+const DEFAULT_CATEGORIES = [
+  { name: "Dining", icon: "🍽️", color: "#cbd5e1", directionScope: "expense" as const },
+  { name: "Groceries", icon: "🛒", color: "#bbf7d0", directionScope: "expense" as const },
+  { name: "Shopping", icon: "🛍️", color: "#f9a8d4", directionScope: "expense" as const },
+  { name: "Transit", icon: "🚆", color: "#fde68a", directionScope: "expense" as const },
+  { name: "Entertainment", icon: "🍿", color: "#93c5fd", directionScope: "expense" as const },
+  { name: "Bills & Fees", icon: "💵", color: "#a7f3d0", directionScope: "expense" as const },
+  { name: "Gifts", icon: "🎁", color: "#fca5a5", directionScope: "expense" as const },
+  { name: "Beauty", icon: "🌼", color: "#d8b4fe", directionScope: "expense" as const },
+  { name: "Work", icon: "💼", color: "#d6d3d1", directionScope: "expense" as const },
+  { name: "Travel", icon: "✈️", color: "#bfdbfe", directionScope: "expense" as const },
+  { name: "Income", icon: "👑", color: "#c4b5fd", directionScope: "income" as const },
+];
+
+async function ensureDefaultCategoriesInternal(ctx: MutationCtx) {
+  const existing = await ctx.db
+    .query("categories")
+    .filter((q) => q.eq(q.field("isDefault"), true))
+    .collect();
+
+  const existingNames = new Set(existing.map((category: { name: string }) => category.name.toLowerCase()));
+
+  for (const category of DEFAULT_CATEGORIES) {
+    if (existingNames.has(category.name.toLowerCase())) continue;
+    await ctx.db.insert("categories", {
+      createdBy: undefined,
+      name: category.name,
+      color: category.color,
+      icon: category.icon,
+      directionScope: category.directionScope,
+      isDefault: true,
+      isActive: true,
+      createdAt: Date.now(),
+    });
+  }
+}
 
 export const listCategories = query({
   args: {},
@@ -22,7 +59,17 @@ export const listCategories = query({
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
 
-    return all.filter((cat) => accessibleIds.includes(cat.createdBy as string));
+    return all.filter((cat) => cat.isDefault || accessibleIds.includes(cat.createdBy as string));
+  },
+});
+
+export const ensureDefaultCategories = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Unauthenticated");
+    await ensureDefaultCategoriesInternal(ctx);
+    return true;
   },
 });
 
@@ -60,6 +107,8 @@ export const createCategory = mutation({
       name,
       color: args.color,
       icon: args.icon,
+      directionScope: "both",
+      isDefault: false,
       isActive: true,
       createdAt: Date.now(),
     });

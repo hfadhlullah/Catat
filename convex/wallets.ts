@@ -139,20 +139,17 @@ export const getWalletOverview = query({
 
     const overview = await Promise.all(
       wallets.map(async (wallet) => {
-        const incomes = await ctx.db
-          .query("incomes")
+        const transactions = await ctx.db
+          .query("transactions")
           .withIndex("by_wallet", (q) => q.eq("walletId", wallet._id))
-          .collect();
-        const expenses = await ctx.db
-          .query("expenses")
-          .withIndex("by_date", (q) => q)
-          .filter((q) => q.eq(q.field("walletId"), wallet._id))
           .collect();
         const budget = await ctx.db
           .query("walletBudgets")
           .withIndex("by_wallet_period", (q) => q.eq("walletId", wallet._id).eq("period", args.period))
           .unique();
 
+        const incomes = transactions.filter((item) => item.direction === "income");
+        const expenses = transactions.filter((item) => item.direction === "expense");
         const totalIncome = incomes.reduce((sum, item) => sum + item.amount, 0);
         const totalExpense = expenses.reduce((sum, item) => sum + item.amount, 0);
         const monthIncome = incomes

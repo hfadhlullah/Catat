@@ -22,9 +22,48 @@ export default defineSchema({
     name: v.string(),
     color: v.optional(v.string()),
     icon: v.optional(v.string()),
+    directionScope: v.optional(v.union(v.literal("expense"), v.literal("income"), v.literal("both"))),
+    isDefault: v.optional(v.boolean()),
     isActive: v.boolean(),
     createdAt: v.number(),
   }).index("by_created_by", ["createdBy"]),
+
+  transactions: defineTable({
+    direction: v.union(v.literal("expense"), v.literal("income")),
+    transactionType: v.union(
+      v.literal("default"),
+      v.literal("upcoming"),
+      v.literal("subscription"),
+      v.literal("repetitive"),
+      v.literal("lent"),
+      v.literal("borrowed")
+    ),
+    amount: v.number(),
+    installmentCount: v.optional(v.number()),
+    installmentRate: v.optional(v.number()),
+    description: v.string(),
+    date: v.number(),
+    categoryId: v.optional(v.id("categories")),
+    walletId: v.optional(v.id("wallets")),
+    vendorId: v.optional(v.id("vendors")),
+    submittedBy: v.id("userProfiles"),
+    receiptStorageId: v.optional(v.id("_storage")),
+    notes: v.optional(v.string()),
+    legacyExpenseId: v.optional(v.id("expenses")),
+    legacyIncomeId: v.optional(v.id("incomes")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_date", ["date"])
+    .index("by_direction", ["direction"])
+    .index("by_category", ["categoryId"])
+    .index("by_vendor", ["vendorId"])
+    .index("by_submitted_by", ["submittedBy"])
+    .index("by_wallet", ["walletId"])
+    .index("by_submitted_by_direction", ["submittedBy", "direction"])
+    .index("by_wallet_direction", ["walletId", "direction"])
+    .index("by_legacy_expense", ["legacyExpenseId"])
+    .index("by_legacy_income", ["legacyIncomeId"]),
 
   vendors: defineTable({
     createdBy: v.optional(v.id("userProfiles")),
@@ -87,6 +126,7 @@ export default defineSchema({
     storageId: v.id("_storage"),
     ownerProfileId: v.id("userProfiles"),
     attachedExpenseId: v.optional(v.id("expenses")),
+    attachedTransactionId: v.optional(v.id("transactions")),
     createdAt: v.number(),
   })
     .index("by_storage", ["storageId"])

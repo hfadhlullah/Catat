@@ -1,10 +1,16 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
 
 export const dynamic = "force-dynamic";
 
 export default function NewExpensePage() {
+  const router = useRouter();
+
   return (
-    <div className="relative min-h-screen pb-24">
+    <div className="relative min-h-screen pb-6">
       {/* Paper texture */}
       <div
         className="fixed inset-0 -z-10
@@ -16,13 +22,23 @@ export default function NewExpensePage() {
       />
 
       <div className="p-4 max-w-lg mx-auto">
-        <div className="pt-4 mb-5 flex items-center gap-2">
-          <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
-            Tambah
-          </span>
-          <span className="text-sm text-muted-foreground font-medium">
-            Pengeluaran Baru
-          </span>
+        <div className="pt-4 mb-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            aria-label="Kembali"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="inline-block -rotate-1 bg-primary text-primary-foreground px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-md">
+              Tambah
+            </span>
+            <span className="text-sm text-muted-foreground font-medium">
+              Transaksi Baru
+            </span>
+          </div>
         </div>
         <ExpenseForm />
       </div>
