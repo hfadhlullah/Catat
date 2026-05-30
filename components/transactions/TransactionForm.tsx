@@ -33,8 +33,8 @@ import {
   type TransactionType,
   validateSplitBill,
 } from "./transaction-helpers";
-import { useExpenseReceipt } from "./use-expense-receipt";
-import { useExpenseSplitBill } from "./use-expense-split-bill";
+import { useTransactionReceipt } from "./use-transaction-receipt";
+import { useTransactionSplitBill } from "./use-transaction-split-bill";
 import { useRecurringTransaction } from "./use-recurring-transaction";
 import { cn } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
@@ -114,8 +114,8 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [sheetPrimaryId, setSheetPrimaryId] = useState<string | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
-  const splitBill = useExpenseSplitBill();
-  const receipt = useExpenseReceipt({
+  const splitBill = useTransactionSplitBill();
+  const receipt = useTransactionReceipt({
     onAmountExtracted: (amount) => {
       setAmountDisplay(formatRupiah(String(amount)));
       setValue("amount", amount, { shouldValidate: true });

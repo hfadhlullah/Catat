@@ -28,7 +28,7 @@ type InitialSplitBill = {
   }>;
 };
 
-export function useExpenseSplitBill() {
+export function useTransactionSplitBill() {
   const [splitBillEnabled, setSplitBillEnabled] = useState(false);
   const [splitMode, setSplitMode] = useState<SplitMode>("equal");
   const [splitParticipants, setSplitParticipants] = useState<SplitParticipant[]>([]);

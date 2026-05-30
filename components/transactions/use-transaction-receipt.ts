@@ -22,7 +22,7 @@ type ReceiptHookArgs = {
   extractReceipt: (storageId: string) => Promise<ReceiptExtraction>;
 };
 
-export function useExpenseReceipt({
+export function useTransactionReceipt({
   onAmountExtracted,
   onDateExtracted,
   onDescriptionExtracted,
