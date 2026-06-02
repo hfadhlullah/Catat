@@ -874,10 +874,15 @@ export const updateWalletTransfer = mutation({
     const sourceId = transaction.direction === "expense" ? transaction._id : linked._id;
     const targetId = transaction.direction === "income" ? transaction._id : linked._id;
     const groupId = transaction.transferGroupId ?? linked.transferGroupId ?? crypto.randomUUID();
+    const sourceTransaction = transaction.direction === "expense" ? transaction : linked;
+
+    if (!sourceTransaction.walletId) {
+      throw new ConvexError("Wallet tidak valid");
+    }
 
     await ensureWalletHasEnoughBalance(ctx, args.fromWalletId, amount, {
-      walletId: transaction.direction === "expense" ? transaction.walletId : linked.walletId,
-      amount: transaction.direction === "expense" ? transaction.amount : linked.amount,
+      walletId: sourceTransaction.walletId,
+      amount: sourceTransaction.amount,
     });
 
     await ctx.db.patch(sourceId, {
