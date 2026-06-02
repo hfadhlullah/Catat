@@ -27,158 +27,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { classifyPreviewDirection, IMPORT_CSV_TEMPLATE_PATH, parseImportedCsv, type ImportedCsvRow } from "@/lib/import-csv";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 import { toast } from "sonner";
-
-type ImportedCsvRow = {
-  rowNumber: number;
-  date: string;
-  category: string;
-  subCategory: string;
-  detail: string;
-  quantity?: string;
-  unit?: string;
-  debit?: string;
-  credit?: string;
-  raw: string;
-};
-
-function parseCsvLine(line: string) {
-  const values: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-    if (char === "," && !inQuotes) {
-      values.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
-function parseCsvRecords(text: string) {
-  const records: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === '"') {
-      current += char;
-      if (inQuotes && next === '"') {
-        current += next;
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") {
-        index += 1;
-      }
-      if (current.trim().length > 0) {
-        records.push(current);
-      }
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.trim().length > 0) {
-    records.push(current);
-  }
-
-  return records;
-}
-
-function parseImportedCsv(text: string) {
-  const lines = parseCsvRecords(text.replace(/^\uFEFF/, ""));
-  if (lines.length <= 1) return [] as ImportedCsvRow[];
-
-  const rows: ImportedCsvRow[] = [];
-  for (let index = 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    const columns = parseCsvLine(line);
-    if (columns.length < 10) continue;
-
-    const [,
-      date,
-      category,
-      subCategory,
-      detail,
-      quantity,
-      maybeUnit,
-      maybeSatuan,
-      debit,
-      credit] = columns;
-
-    rows.push({
-      rowNumber: index + 1,
-      date: date ?? "",
-      category: category ?? "",
-      subCategory: subCategory ?? "",
-      detail: detail ?? "",
-      quantity: quantity ?? "",
-      unit: maybeSatuan || maybeUnit || "",
-      debit: debit ?? "",
-      credit: credit ?? "",
-      raw: line,
-    });
-  }
-
-  return rows;
-}
-
-function parseMoneyPreview(raw: string | undefined) {
-  const cleaned = (raw ?? "").replace(/Rp/gi, "").replace(/["'\s]/g, "").replace(/,/g, "").replace(/[^0-9.-]/g, "");
-  if (!cleaned || cleaned === "-" || cleaned === ".") return null;
-  const value = Number(cleaned);
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function classifyPreviewDirection(row: ImportedCsvRow) {
-  const category = row.category.trim().toUpperCase();
-  const combined = `${row.subCategory} ${row.detail}`.toLowerCase();
-  const debit = parseMoneyPreview(row.debit);
-  const credit = parseMoneyPreview(row.credit);
-
-  if (["bank in", "cash in", "investment", "initial investment", "setor", "modal"].some((item) => combined.includes(item))) {
-    return "income" as const;
-  }
-  if (["bank out", "cash out", "transfer out", "withdraw", "bayar", "payment"].some((item) => combined.includes(item))) {
-    return "expense" as const;
-  }
-  if (category === "BANK IN/OUT") {
-    if (debit && !credit) return "income" as const;
-    if (credit && !debit) return "expense" as const;
-  }
-  if (credit && !debit) return "expense" as const;
-  if (debit && !credit) return "income" as const;
-  return null;
-}
 
 function DetailRow({
   icon: Icon,
@@ -933,7 +785,14 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <label htmlFor="import-csv" className="text-sm text-foreground">File CSV</label>
             <Input id="import-csv" type="file" accept=".csv,text/csv" onChange={handleImportFileChange} className="border-border bg-background text-foreground" />
-            <p className="text-xs text-muted-foreground">Gunakan file dengan kolom `CATEGORY`, `SUB CATEGORY`, `DETAIL`, `Debit`, dan `Kredit`.</p>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <a href={IMPORT_CSV_TEMPLATE_PATH} download className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 font-medium text-primary transition-colors hover:bg-primary/10">
+                Download Template CSV
+              </a>
+              <span>Format tanggal `YYYY-MM-DD`.</span>
+              <span>Isi `Debit` untuk pemasukan.</span>
+              <span>Isi `Credit` untuk pengeluaran.</span>
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
