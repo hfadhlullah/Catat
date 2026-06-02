@@ -14,7 +14,16 @@ import { id as idLocale } from "date-fns/locale";
 import {
   CalendarIcon,
   ChevronDown,
+  ArrowLeftRight,
 } from "lucide-react";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -288,6 +297,14 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     splitBill.clearWalletMembersFromSplit();
   }
 
+  function handleSwapWallets() {
+    haptics.light();
+    const tempFrom = selectedWalletId;
+    const tempTo = selectedToWalletId;
+    setValue("walletId", tempTo || "", { shouldValidate: true });
+    setValue("toWalletId", tempFrom || "", { shouldValidate: true });
+  }
+
   function handleOpenAddCategory() {
     if (!selectedWalletId) {
       toast.error("Pilih wallet dulu sebelum menambah kategori");
@@ -457,38 +474,40 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
       {/* ── DIRECTION + CATEGORY + AMOUNT + DATE ── */}
       <div className={cn(expenseCardShadow, "overflow-hidden p-4")}>
         {/* Direction toggle */}
-        <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted/50 p-1">
-          {[
-            { value: "expense", label: "Pengeluaran" },
-            { value: "income", label: "Pemasukan" },
-          ].map((option, i) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => { haptics.light(); handleDirectionChange(option.value as typeof direction); }}
-              className={cn(
-                "relative px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200",
-                direction === option.value
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              style={
-                direction === option.value
-                  ? { transform: `rotate(${i === 0 ? -0.5 : 0.5}deg)` }
-                  : undefined
-              }
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="relative">
+          <div className={cn("grid grid-cols-2 gap-1.5 rounded-xl bg-muted/50 p-1", isTransfer && "opacity-40 select-none pointer-events-none")}>
+            {[
+              { value: "expense", label: "Pengeluaran" },
+              { value: "income", label: "Pemasukan" },
+            ].map((option, i) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => { haptics.light(); handleDirectionChange(option.value as typeof direction); }}
+                className={cn(
+                  "relative px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200",
+                  direction === option.value
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                style={
+                  direction === option.value
+                    ? { transform: `rotate(${i === 0 ? -0.5 : 0.5}deg)` }
+                    : undefined
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Category + Amount */}
         <div className="mt-4 flex items-center gap-4">
           {/* Category icon */}
           {isTransfer ? (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-lg font-semibold text-primary">
-              Tx
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+              <ArrowLeftRight className="h-5 w-5" />
             </div>
           ) : (
             <button
@@ -523,9 +542,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
             </div>
             {isTransfer ? (
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {selectedWalletId && selectedToWalletId
-                  ? `${wallets?.find((wallet) => wallet._id === selectedWalletId)?.label || wallets?.find((wallet) => wallet._id === selectedWalletId)?.name} -> ${wallets?.find((wallet) => wallet._id === selectedToWalletId)?.label || wallets?.find((wallet) => wallet._id === selectedToWalletId)?.name}`
-                  : "Pindahkan saldo antar wallet"}
+                Pindahkan saldo antar wallet
               </p>
             ) : selectedCategory && (
               <p className="mt-0.5 text-sm text-muted-foreground">
@@ -647,174 +664,229 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
           />
         )}
 
-        {/* Wallet */}
-        <div className="space-y-2">
-          <p className="px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {isTransfer ? "Wallet Asal" : "Wallet"}
-          </p>
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
-          {wallets?.map((wallet) => {
-            const active = selectedWalletId === wallet._id;
-            return (
-              <button
-                key={wallet._id}
-                type="button"
-                onClick={() => handleWalletChange(wallet._id)}
-                className={cn(
-                  "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
-                  active
-                    ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground hover:border-primary/30"
-                )}
-              >
-                {wallet.label || wallet.name}
-              </button>
-            );
-          })}
-          {wallets?.length === 0 && (
-            <p className="shrink-0 text-xs text-muted-foreground">Belum ada wallet.</p>
-          )}
-          </div>
-        </div>
-        {errors.walletId && (
-          <p className="text-xs text-destructive">{errors.walletId.message}</p>
-        )}
+        {/* Wallet Selector (Transfer Flow vs. standard list) */}
+        {isTransfer ? (
+          <div className="space-y-3 relative">
+            <span className="block px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Alur Wallet
+            </span>
+            
+            <div className="relative space-y-3 px-2">
+              {/* Source Wallet Dropdown */}
+              <Select value={selectedWalletId} onValueChange={handleWalletChange}>
+                <SelectTrigger className="w-full text-left bg-muted/40 border border-border hover:border-primary/40 rounded-xl h-auto p-3.5 flex items-center justify-between text-sm font-semibold text-foreground focus:ring-0 focus:ring-offset-0 focus:border-primary cursor-pointer [&>span]:line-clamp-none [&>span]:w-full relative z-10">
+                  <div className="space-y-0.5 text-left w-full">
+                    <span className="block text-[8px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Dari (Wallet Asal)
+                    </span>
+                    <SelectValue placeholder="Pilih wallet asal" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {wallets?.map((w) => (
+                    <SelectItem key={w._id} value={w._id}>
+                      {w.label || w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-        {isTransfer && (
-          <div className="space-y-2">
-            <p className="px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Wallet Tujuan</p>
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+              {/* Connecting Swap Arrow Button */}
+              <div className="absolute left-1/2 -translate-x-1/2 top-[60px] -translate-y-1/2 z-20">
+                <button
+                  type="button"
+                  onClick={handleSwapWallets}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-primary bg-primary text-primary-foreground shadow-sm transition-all active:scale-90 hover:scale-105 hover:bg-primary/90 cursor-pointer"
+                  title="Tukar Wallet"
+                >
+                  <ArrowLeftRight className="h-4 w-4 rotate-90" />
+                </button>
+              </div>
+
+              {/* Destination Wallet Dropdown */}
+              <Select value={selectedToWalletId} onValueChange={(val) => setValue("toWalletId", val, { shouldValidate: true })}>
+                <SelectTrigger className="w-full text-left bg-muted/40 border border-border hover:border-primary/40 rounded-xl h-auto p-3.5 flex items-center justify-between text-sm font-semibold text-foreground focus:ring-0 focus:ring-offset-0 focus:border-primary cursor-pointer [&>span]:line-clamp-none [&>span]:w-full relative z-10">
+                  <div className="space-y-0.5 text-left w-full">
+                    <span className="block text-[8px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Ke (Wallet Tujuan)
+                    </span>
+                    <SelectValue placeholder="Pilih wallet tujuan" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {wallets?.map((w) => (
+                    <SelectItem key={w._id} value={w._id} disabled={w._id === selectedWalletId}>
+                      {w.label || w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Bottom Summary text */}
+            {selectedWalletId && selectedToWalletId && (
+              <div className="mx-2 bg-primary/5 rounded-xl p-2.5 text-center text-xs text-muted-foreground border border-primary/10 transition-all">
+                Mentransfer dana dari <strong className="text-foreground">{wallets?.find(w => w._id === selectedWalletId)?.label || wallets?.find(w => w._id === selectedWalletId)?.name}</strong> ke <strong className="text-foreground">{wallets?.find(w => w._id === selectedToWalletId)?.label || wallets?.find(w => w._id === selectedToWalletId)?.name}</strong>
+              </div>
+            )}
+            
+            {errors.walletId && (
+              <p className="px-4 text-xs text-destructive">{errors.walletId.message}</p>
+            )}
+            {errors.toWalletId && (
+              <p className="px-4 text-xs text-destructive">{errors.toWalletId.message}</p>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Wallet */}
+            <div className="space-y-2">
+              <p className="px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Wallet
+              </p>
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
               {wallets?.map((wallet) => {
-                const active = selectedToWalletId === wallet._id;
-                const disabled = selectedWalletId === wallet._id;
+                const active = selectedWalletId === wallet._id;
                 return (
                   <button
                     key={wallet._id}
                     type="button"
-                    onClick={() => !disabled && setValue("toWalletId", wallet._id, { shouldValidate: true })}
-                    disabled={disabled}
+                    onClick={() => handleWalletChange(wallet._id)}
                     className={cn(
                       "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
                       active
                         ? "border-transparent bg-primary text-primary-foreground"
-                        : disabled
-                          ? "border-border bg-muted text-muted-foreground/60"
-                          : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                        : "border-border bg-background text-muted-foreground hover:border-primary/30"
                     )}
                   >
                     {wallet.label || wallet.name}
                   </button>
                 );
               })}
+              {wallets?.length === 0 && (
+                <p className="shrink-0 text-xs text-muted-foreground">Belum ada wallet.</p>
+              )}
+              </div>
             </div>
-            {errors.toWalletId && (
-              <p className="text-xs text-destructive">{errors.toWalletId.message}</p>
+            {errors.walletId && (
+              <p className="text-xs text-destructive">{errors.walletId.message}</p>
             )}
-          </div>
+          </>
         )}
 
       </div>
 
       {isTransfer ? (
-        <div className={cn("space-y-3 p-4", expenseCardShadow)}>
-          <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Deskripsi</p>
+        <div className={cn("space-y-4 p-4", expenseCardShadow)}>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Detail Keterangan</p>
+          
+          <div className="space-y-1">
+            <label className="block text-[10px] text-muted-foreground font-semibold px-1">Deskripsi</label>
             <input
               value={descriptionValue}
               onChange={(e) => setValue("description", e.target.value, { shouldValidate: true })}
               placeholder="Contoh: Pindah saldo operasional"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary transition-all"
             />
             {errors.description?.message && (
               <p className="text-xs text-destructive">{errors.description.message}</p>
             )}
           </div>
+
+          <div className="space-y-1">
+            <label className="block text-[10px] text-muted-foreground font-semibold px-1">Catatan Tambahan (Opsional)</label>
+            <input
+              {...register("notes")}
+              placeholder="Catatan tambahan..."
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary transition-all"
+            />
+          </div>
         </div>
       ) : (
-        <DescriptionPhotoSection
-          descriptionValue={descriptionValue}
-          onDescriptionChange={(v) => setValue("description", v, { shouldValidate: true })}
-          descriptionError={errors.description?.message}
-          fileRef={fileRef}
-          photoPreview={receipt.photoPreview}
-          scanning={receipt.scanning}
-          isEditMode={mode === "edit"}
-          onPhotoChange={receipt.handlePhotoChange}
-        />
-      )}
-
-      {/* ── MORE OPTIONS ── */}
-      <div className={cn("overflow-hidden", expenseCardShadow)}>
-        <button
-          type="button"
-          onClick={() => setShowMoreOptions((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/30"
-        >
-          <span>Opsi lainnya</span>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform duration-200",
-              showMoreOptions && "rotate-180"
-            )}
+        <>
+          <DescriptionPhotoSection
+            descriptionValue={descriptionValue}
+            onDescriptionChange={(v) => setValue("description", v, { shouldValidate: true })}
+            descriptionError={errors.description?.message}
+            fileRef={fileRef}
+            photoPreview={receipt.photoPreview}
+            scanning={receipt.scanning}
+            isEditMode={mode === "edit"}
+            onPhotoChange={receipt.handlePhotoChange}
           />
-        </button>
 
-        {showMoreOptions && (
-          <div className="space-y-4 border-t border-border p-4">
-            {/* Vendor */}
-            {isExpense && (
-              <VendorSection
-                newVendorName={newVendorName}
-                selectedVendorId={selectedVendorId}
-                showNewVendor={showNewVendor}
-                vendors={vendors}
-                onAddVendor={addNewVendor}
-                onNewVendorNameChange={setNewVendorName}
-                onSelectVendor={(vendorId) => setValue("vendorId", vendorId)}
-                onShowNewVendorChange={setShowNewVendor}
+          {/* ── MORE OPTIONS ── */}
+          <div className={cn("overflow-hidden", expenseCardShadow)}>
+            <button
+              type="button"
+              onClick={() => setShowMoreOptions((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/30"
+            >
+              <span>Opsi lainnya</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                  showMoreOptions && "rotate-180"
+                )}
               />
+            </button>
+
+            {showMoreOptions && (
+              <div className="space-y-4 border-t border-border p-4">
+                {/* Vendor */}
+                {isExpense && (
+                  <VendorSection
+                    newVendorName={newVendorName}
+                    selectedVendorId={selectedVendorId}
+                    showNewVendor={showNewVendor}
+                    vendors={vendors}
+                    onAddVendor={addNewVendor}
+                    onNewVendorNameChange={setNewVendorName}
+                    onSelectVendor={(vendorId) => setValue("vendorId", vendorId)}
+                    onShowNewVendorChange={setShowNewVendor}
+                  />
+                )}
+
+                {/* Notes */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
+                  </p>
+                  <input
+                    {...register("notes")}
+                    placeholder="Catatan tambahan..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+                  />
+                </div>
+
+                {isExpense && selectedWalletId && (
+                  <SplitBillSection
+                    amountValue={amountValue}
+                    customSplitName={splitBill.customSplitName}
+                    customSplitRemaining={customSplitRemaining}
+                    displaySplitParticipants={displaySplitParticipants}
+                    equalPreviewBase={equalPreviewBase}
+                    equalPreviewRemainder={equalPreviewRemainder}
+                    splitBillEnabled={splitBill.splitBillEnabled}
+                    splitMemberIds={splitMemberIds}
+                    splitMembers={splitMembers}
+                    splitMode={splitBill.splitMode}
+                    splitPaidCount={splitPaidCount}
+                    splitParticipantCount={splitParticipantCount}
+                    onAddCustomSplitParticipant={splitBill.addCustomSplitParticipant}
+                    onCustomSplitNameChange={splitBill.setCustomSplitName}
+                    onSplitBillToggle={() => splitBill.ensureCurrentProfileParticipant(currentProfile, walletMembers)}
+                    onSplitModeChange={splitBill.setSplitMode}
+                    onToggleSplitParticipant={splitBill.toggleSplitParticipant}
+                    onUpdateSplitParticipant={splitBill.updateSplitParticipant}
+                    onRemoveSplitParticipant={splitBill.removeSplitParticipant}
+                  />
+                )}
+              </div>
             )}
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Catatan <span className="normal-case text-muted-foreground">(opsional)</span>
-              </p>
-              <input
-                {...register("notes")}
-                placeholder="Catatan tambahan..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
-              />
-            </div>
-
-            {isExpense && selectedWalletId && (
-              <SplitBillSection
-                amountValue={amountValue}
-                customSplitName={splitBill.customSplitName}
-                customSplitRemaining={customSplitRemaining}
-                displaySplitParticipants={displaySplitParticipants}
-                equalPreviewBase={equalPreviewBase}
-                equalPreviewRemainder={equalPreviewRemainder}
-                splitBillEnabled={splitBill.splitBillEnabled}
-                splitMemberIds={splitMemberIds}
-                splitMembers={splitMembers}
-                splitMode={splitBill.splitMode}
-                splitPaidCount={splitPaidCount}
-                splitParticipantCount={splitParticipantCount}
-                onAddCustomSplitParticipant={splitBill.addCustomSplitParticipant}
-                onCustomSplitNameChange={splitBill.setCustomSplitName}
-                onSplitBillToggle={() => splitBill.ensureCurrentProfileParticipant(currentProfile, walletMembers)}
-                onSplitModeChange={splitBill.setSplitMode}
-                onToggleSplitParticipant={splitBill.toggleSplitParticipant}
-                onUpdateSplitParticipant={splitBill.updateSplitParticipant}
-                onRemoveSplitParticipant={splitBill.removeSplitParticipant}
-              />
-            )}
-
-
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* ── SUBMIT ── */}
       <button
