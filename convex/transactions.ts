@@ -31,6 +31,43 @@ async function hasWalletAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"userP
   return !!member;
 }
 
+async function requireWalletAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"userProfiles">, walletId: Id<"wallets">) {
+  const hasAccess = await hasWalletAccess(ctx, profileId, walletId);
+  if (!hasAccess) {
+    throw new ConvexError("Wallet tidak valid");
+  }
+}
+
+function isTransferTransaction(transaction: {
+  transactionType: string;
+  transferGroupId?: string;
+  linkedTransactionId?: Id<"transactions">;
+  transferPeerWalletId?: Id<"wallets">;
+}) {
+  return transaction.transactionType === "transfer" || !!transaction.transferGroupId || !!transaction.linkedTransactionId || !!transaction.transferPeerWalletId;
+}
+
+async function getLinkedTransferTransaction(ctx: QueryCtx | MutationCtx, transaction: {
+  _id: Id<"transactions">;
+  linkedTransactionId?: Id<"transactions">;
+  transferGroupId?: string;
+}) {
+  if (transaction.linkedTransactionId) {
+    return await ctx.db.get(transaction.linkedTransactionId);
+  }
+
+  if (!transaction.transferGroupId) {
+    return null;
+  }
+
+  const linked = await ctx.db
+    .query("transactions")
+    .filter((q) => q.eq(q.field("transferGroupId"), transaction.transferGroupId))
+    .collect();
+
+  return linked.find((item) => item._id !== transaction._id) ?? null;
+}
+
 function getInstallmentSnapshot(transaction: {
   amount: number;
   installmentCount?: number;
@@ -129,9 +166,27 @@ async function validateTransactionPayload(
   if (!args.walletId) {
     throw new ConvexError("Wallet wajib dipilih");
   }
-  const hasAccess = await hasWalletAccess(ctx, profileId, args.walletId);
-  if (!hasAccess) {
-    throw new ConvexError("Wallet tidak valid");
+  await requireWalletAccess(ctx, profileId, args.walletId);
+
+  const isTransfer = args.transactionType === "transfer";
+
+  if (isTransfer) {
+    if (args.categoryId) {
+      throw new ConvexError("Transfer tidak memakai kategori");
+    }
+    if (args.vendorId) {
+      throw new ConvexError("Transfer tidak memakai vendor");
+    }
+    if ((args.installmentCount ?? 1) > 1) {
+      throw new ConvexError("Transfer tidak mendukung cicilan");
+    }
+    if ((args.installmentRate ?? 0) > 0) {
+      throw new ConvexError("Transfer tidak mendukung bunga cicilan");
+    }
+    if (args.splitBill?.enabled) {
+      throw new ConvexError("Transfer tidak mendukung split bill");
+    }
+    return;
   }
 
   if (args.direction === "expense") {
@@ -343,7 +398,8 @@ export const createTransaction = mutation({
       v.literal("subscription"),
       v.literal("repetitive"),
       v.literal("lent"),
-      v.literal("borrowed")
+      v.literal("borrowed"),
+      v.literal("transfer")
     ),
     amount: v.number(),
     installmentCount: v.optional(v.number()),
@@ -359,6 +415,9 @@ export const createTransaction = mutation({
   },
   handler: async (ctx, args) => {
     const profile = await getCurrentProfile(ctx);
+    if (args.transactionType === "transfer") {
+      throw new ConvexError("Gunakan fitur transfer wallet");
+    }
     const receipt = await validateReceiptOwnership(ctx, profile._id, args.receiptStorageId);
     const splitBill = normalizeSplitBill(args.amount, args.splitBill);
     await validateTransactionPayload(ctx, profile._id, { ...args, splitBill });
@@ -379,6 +438,9 @@ export const createTransaction = mutation({
       receiptStorageId: args.direction === "expense" ? args.receiptStorageId : undefined,
       notes: args.notes,
       splitBill,
+      transferGroupId: undefined,
+      transferPeerWalletId: undefined,
+      linkedTransactionId: undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -409,8 +471,110 @@ export const getTransactionById = query({
     const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
     const wallet = transaction.walletId ? await ctx.db.get(transaction.walletId) : null;
     const receiptUrl = transaction.receiptStorageId ? await ctx.storage.getUrl(transaction.receiptStorageId) : null;
+    const linkedTransfer = isTransferTransaction(transaction) ? await getLinkedTransferTransaction(ctx, transaction) : null;
+    const transferPeerWallet = transaction.transferPeerWalletId ? await ctx.db.get(transaction.transferPeerWalletId) : null;
 
-    return { ...transaction, category, vendor, wallet, receiptUrl, isOwner };
+    return {
+      ...transaction,
+      category,
+      vendor,
+      wallet,
+      receiptUrl,
+      isOwner,
+      transferPeerWallet,
+      linkedTransfer: linkedTransfer
+        ? {
+            _id: linkedTransfer._id,
+            walletId: linkedTransfer.walletId,
+            transferPeerWalletId: linkedTransfer.transferPeerWalletId,
+            amount: linkedTransfer.amount,
+          }
+        : null,
+    };
+  },
+});
+
+export const createWalletTransfer = mutation({
+  args: {
+    amount: v.number(),
+    description: v.optional(v.string()),
+    date: v.number(),
+    fromWalletId: v.id("wallets"),
+    toWalletId: v.id("wallets"),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+
+    if (Math.round(args.amount) < 1) {
+      throw new ConvexError("Masukkan jumlah");
+    }
+    if (args.fromWalletId === args.toWalletId) {
+      throw new ConvexError("Wallet asal dan tujuan harus berbeda");
+    }
+
+    await requireWalletAccess(ctx, profile._id, args.fromWalletId);
+    await requireWalletAccess(ctx, profile._id, args.toWalletId);
+
+    const fromWallet = await ctx.db.get(args.fromWalletId);
+    const toWallet = await ctx.db.get(args.toWalletId);
+    if (!fromWallet || !toWallet) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+
+    const now = Date.now();
+    const transferGroupId = crypto.randomUUID();
+    const amount = Math.round(args.amount);
+    const description = args.description?.trim() || `Transfer ke ${toWallet.label || toWallet.name}`;
+    const linkedDescription = args.description?.trim() || `Transfer dari ${fromWallet.label || fromWallet.name}`;
+
+    const fromTransactionId = await ctx.db.insert("transactions", {
+      direction: "expense",
+      transactionType: "transfer",
+      amount,
+      installmentCount: 1,
+      installmentRate: 0,
+      description,
+      date: args.date,
+      categoryId: undefined,
+      walletId: args.fromWalletId,
+      vendorId: undefined,
+      submittedBy: profile._id,
+      receiptStorageId: undefined,
+      notes: args.notes,
+      splitBill: undefined,
+      transferGroupId,
+      transferPeerWalletId: args.toWalletId,
+      linkedTransactionId: undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const toTransactionId = await ctx.db.insert("transactions", {
+      direction: "income",
+      transactionType: "transfer",
+      amount,
+      installmentCount: undefined,
+      installmentRate: 0,
+      description: linkedDescription,
+      date: args.date,
+      categoryId: undefined,
+      walletId: args.toWalletId,
+      vendorId: undefined,
+      submittedBy: profile._id,
+      receiptStorageId: undefined,
+      notes: args.notes,
+      splitBill: undefined,
+      transferGroupId,
+      transferPeerWalletId: args.fromWalletId,
+      linkedTransactionId: fromTransactionId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(fromTransactionId, { linkedTransactionId: toTransactionId });
+
+    return fromTransactionId;
   },
 });
 
@@ -424,7 +588,8 @@ export const updateTransaction = mutation({
       v.literal("subscription"),
       v.literal("repetitive"),
       v.literal("lent"),
-      v.literal("borrowed")
+      v.literal("borrowed"),
+      v.literal("transfer")
     ),
     amount: v.number(),
     installmentCount: v.optional(v.number()),
@@ -443,6 +608,8 @@ export const updateTransaction = mutation({
     const transaction = await ctx.db.get(args.id);
     if (!transaction) throw new ConvexError("Not found");
     if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
+    if (isTransferTransaction(transaction)) throw new ConvexError("Gunakan edit transfer");
+    if (args.transactionType === "transfer") throw new ConvexError("Gunakan edit transfer");
 
     const splitBill = normalizeSplitBill(args.amount, args.splitBill);
     await validateTransactionPayload(ctx, profile._id, { ...args, splitBill });
@@ -568,12 +735,14 @@ export const listTransactions = query({
         const wallet = transaction.walletId ? await ctx.db.get(transaction.walletId) : null;
         const receiptUrl = transaction.receiptStorageId ? await ctx.storage.getUrl(transaction.receiptStorageId) : null;
         const submitter = await ctx.db.get(transaction.submittedBy);
+        const transferPeerWallet = transaction.transferPeerWalletId ? await ctx.db.get(transaction.transferPeerWalletId) : null;
 
         return {
           ...transaction,
           category,
           vendor,
           wallet,
+          transferPeerWallet,
           receiptUrl,
           submitterName: submitter?.name ?? "User",
           isOwn: transaction.submittedBy === profile._id,
@@ -593,6 +762,15 @@ export const deleteTransaction = mutation({
     if (!transaction) throw new ConvexError("Not found");
     if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
 
+    if (isTransferTransaction(transaction)) {
+      const linked = await getLinkedTransferTransaction(ctx, transaction);
+      if (linked && linked.submittedBy === profile._id) {
+        await ctx.db.delete(linked._id);
+      }
+      await ctx.db.delete(args.id);
+      return;
+    }
+
     if (transaction.legacyExpenseId) {
       const legacyExpense = await ctx.db.get(transaction.legacyExpenseId);
       if (legacyExpense) {
@@ -608,6 +786,94 @@ export const deleteTransaction = mutation({
     }
 
     await ctx.db.delete(args.id);
+  },
+});
+
+export const updateWalletTransfer = mutation({
+  args: {
+    id: v.id("transactions"),
+    amount: v.number(),
+    description: v.optional(v.string()),
+    date: v.number(),
+    fromWalletId: v.id("wallets"),
+    toWalletId: v.id("wallets"),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const profile = await getCurrentProfile(ctx);
+    const transaction = await ctx.db.get(args.id);
+    if (!transaction) throw new ConvexError("Not found");
+    if (transaction.submittedBy !== profile._id) throw new ConvexError("Unauthorized");
+    if (!isTransferTransaction(transaction)) throw new ConvexError("Transaksi ini bukan transfer");
+
+    const linked = await getLinkedTransferTransaction(ctx, transaction);
+    if (!linked) throw new ConvexError("Transfer pasangan tidak ditemukan");
+
+    if (Math.round(args.amount) < 1) {
+      throw new ConvexError("Masukkan jumlah");
+    }
+    if (args.fromWalletId === args.toWalletId) {
+      throw new ConvexError("Wallet asal dan tujuan harus berbeda");
+    }
+
+    await requireWalletAccess(ctx, profile._id, args.fromWalletId);
+    await requireWalletAccess(ctx, profile._id, args.toWalletId);
+
+    const fromWallet = await ctx.db.get(args.fromWalletId);
+    const toWallet = await ctx.db.get(args.toWalletId);
+    if (!fromWallet || !toWallet) {
+      throw new ConvexError("Wallet tidak valid");
+    }
+
+    const amount = Math.round(args.amount);
+    const baseDescription = args.description?.trim();
+    const fromDescription = baseDescription || `Transfer ke ${toWallet.label || toWallet.name}`;
+    const toDescription = baseDescription || `Transfer dari ${fromWallet.label || fromWallet.name}`;
+    const now = Date.now();
+
+    const sourceId = transaction.direction === "expense" ? transaction._id : linked._id;
+    const targetId = transaction.direction === "income" ? transaction._id : linked._id;
+    const groupId = transaction.transferGroupId ?? linked.transferGroupId ?? crypto.randomUUID();
+
+    await ctx.db.patch(sourceId, {
+      direction: "expense",
+      transactionType: "transfer",
+      amount,
+      description: fromDescription,
+      date: args.date,
+      walletId: args.fromWalletId,
+      notes: args.notes,
+      categoryId: undefined,
+      vendorId: undefined,
+      receiptStorageId: undefined,
+      splitBill: undefined,
+      installmentCount: 1,
+      installmentRate: 0,
+      transferGroupId: groupId,
+      transferPeerWalletId: args.toWalletId,
+      linkedTransactionId: targetId,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(targetId, {
+      direction: "income",
+      transactionType: "transfer",
+      amount,
+      description: toDescription,
+      date: args.date,
+      walletId: args.toWalletId,
+      notes: args.notes,
+      categoryId: undefined,
+      vendorId: undefined,
+      receiptStorageId: undefined,
+      splitBill: undefined,
+      installmentCount: undefined,
+      installmentRate: 0,
+      transferGroupId: groupId,
+      transferPeerWalletId: args.fromWalletId,
+      linkedTransactionId: sourceId,
+      updatedAt: now,
+    });
   },
 });
 

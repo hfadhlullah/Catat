@@ -215,6 +215,7 @@ export function WebTransactions() {
             <tbody>
               {results.map((tx) => {
                 const isExpense = tx.direction === "expense";
+                const isTransfer = tx.transactionType === "transfer";
                 return (
                   <tr key={tx._id} className="group border-b border-border/60 transition-colors last:border-0 hover:bg-accent/40">
                     <td className="px-5 py-3 align-middle">
@@ -224,13 +225,17 @@ export function WebTransactions() {
                     </td>
                     <td className="max-w-0 px-5 py-3 align-middle">
                       <Link href={`/transactions/${tx._id}/edit`} className="flex items-center gap-2">
-                        {tx.category?.icon && <span className="shrink-0 text-base leading-none">{tx.category.icon}</span>}
+                        {tx.category?.icon && !isTransfer && <span className="shrink-0 text-base leading-none">{tx.category.icon}</span>}
                         <span className="truncate font-medium text-card-foreground">{tx.description}</span>
                         {tx.vendor && <span className="shrink-0 text-xs text-muted-foreground">· {tx.vendor.name}</span>}
                       </Link>
                     </td>
                     <td className="px-5 py-3 align-middle">
-                      {tx.category ? (
+                      {isTransfer ? (
+                        <span className="inline-block whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                          Transfer
+                        </span>
+                      ) : tx.category ? (
                         <span
                           className="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs"
                           style={{
@@ -251,6 +256,12 @@ export function WebTransactions() {
                             <Image src={`/bank-logo/${tx.wallet.logo}`} alt={tx.wallet.name} width={14} height={14} className="h-3.5 w-auto object-contain" />
                           )}
                           {tx.wallet.label || tx.wallet.name}
+                          {isTransfer && tx.transferPeerWallet && (
+                            <>
+                              <span>{"->"}</span>
+                              <span>{tx.transferPeerWallet.label || tx.transferPeerWallet.name}</span>
+                            </>
+                          )}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>

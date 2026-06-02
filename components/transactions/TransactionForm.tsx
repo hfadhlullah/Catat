@@ -30,6 +30,7 @@ import {
   formatRupiah,
   isRecurringTransactionType,
   transactionTypeOptions,
+  type TransactionDirection,
   type TransactionType,
   validateSplitBill,
 } from "./transaction-helpers";
@@ -44,10 +45,11 @@ const schema = z.object({
   amount: z.number().min(1, "Masukkan jumlah"),
   installmentCount: z.number().int().min(1, "Minimal 1x"),
   installmentRate: z.number().min(0, "Minimal 0%"),
-  description: z.string().min(1, "Masukkan deskripsi"),
+  description: z.string(),
   date: z.date(),
   categoryId: z.string().optional(),
   walletId: z.string().min(1, "Pilih wallet"),
+  toWalletId: z.string().optional(),
   vendorId: z.string().optional(),
   notes: z.string().optional(),
   transactionType: z.string().min(1, "Pilih tipe transaksi"),
@@ -61,7 +63,7 @@ interface TransactionFormProps {
   initialExpense?: {
     _id: Id<"transactions">;
     direction?: "expense" | "income";
-    transactionType?: "default" | "upcoming" | "subscription" | "repetitive" | "lent" | "borrowed";
+    transactionType?: "default" | "upcoming" | "subscription" | "repetitive" | "lent" | "borrowed" | "transfer";
     amount: number;
     installmentCount?: number;
     installmentRate?: number;
@@ -73,6 +75,13 @@ interface TransactionFormProps {
     notes?: string;
     receiptStorageId?: Id<"_storage">;
     receiptUrl?: string | null;
+    transferPeerWalletId?: Id<"wallets">;
+    linkedTransfer?: {
+      _id: Id<"transactions">;
+      walletId?: Id<"wallets">;
+      transferPeerWalletId?: Id<"wallets">;
+      amount: number;
+    } | null;
     splitBill?: {
       enabled: boolean;
       mode: "equal" | "custom";
@@ -98,6 +107,8 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
   const vendors = useQuery(api.vendors.listVendors);
   const createExpense = useMutation(api.transactions.createTransaction);
   const updateExpense = useMutation(api.transactions.updateTransaction);
+  const createTransfer = useMutation(api.transactions.createWalletTransfer);
+  const updateTransfer = useMutation(api.transactions.updateWalletTransfer);
   const ensureDefaultCategories = useMutation(api.categories.ensureDefaultCategories);
   const createVendor = useMutation(api.vendors.createVendor);
   const generateUploadUrl = useMutation(api.transactions.generateUploadUrl);
@@ -109,7 +120,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
   const [showNewVendor, setShowNewVendor] = useState(false);
   const [amountDisplay, setAmountDisplay] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
-  const [direction, setDirection] = useState<"expense" | "income">("expense");
+  const [direction, setDirection] = useState<TransactionDirection>("expense");
   const [transactionType, setTransactionType] = useState<TransactionType>("default");
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -161,7 +172,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { amount: 0, description: "", date: new Date(), installmentCount: 1, installmentRate: 0, transactionType: "default", walletId: "" },
+    defaultValues: { amount: 0, description: "", date: new Date(), installmentCount: 1, installmentRate: 0, transactionType: "default", walletId: "", toWalletId: "" },
   });
 
   const isMobile = useMobile();
@@ -169,6 +180,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
   const selectedDate = useWatch({ control, name: "date" });
   const selectedCategoryId = useWatch({ control, name: "categoryId" });
   const selectedWalletId = useWatch({ control, name: "walletId" });
+  const selectedToWalletId = useWatch({ control, name: "toWalletId" });
   const selectedVendorId = useWatch({ control, name: "vendorId" });
   const categories = useQuery(api.categories.listCategories, selectedWalletId ? { walletId: selectedWalletId as Id<"wallets"> } : "skip");
   const walletMembers = useQuery(api.walletSharing.listMembers, selectedWalletId ? { walletId: selectedWalletId as Id<"wallets"> } : "skip");
@@ -200,10 +212,11 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
       if (initializedExpenseRef.current === initialExpense._id) return;
 
       const isInstallment = (initialExpense.installmentCount ?? 1) > 1;
-      const currentDirection = initialExpense.direction ?? "expense";
+      const currentDirection = initialExpense.transactionType === "transfer" ? "transfer" : (initialExpense.direction ?? "expense");
       setDirection(currentDirection);
       setTransactionType(initialExpense.transactionType ?? "default");
       setShowMoreOptions(
+        currentDirection === "transfer" ||
         Boolean(initialExpense.vendorId) ||
         Boolean(initialExpense.notes) ||
         isInstallment
@@ -219,10 +232,19 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         description: initialExpense.description,
         date: new Date(initialExpense.date),
         categoryId: initialExpense.categoryId,
-        walletId: initialExpense.walletId ?? "",
+        walletId: initialExpense.transactionType === "transfer"
+          ? (initialExpense.direction === "expense"
+            ? (initialExpense.walletId ?? "")
+            : (initialExpense.transferPeerWalletId ?? initialExpense.linkedTransfer?.walletId ?? ""))
+          : (initialExpense.walletId ?? ""),
+        toWalletId: initialExpense.transactionType === "transfer"
+          ? (initialExpense.direction === "expense"
+            ? (initialExpense.transferPeerWalletId ?? initialExpense.linkedTransfer?.walletId ?? "")
+            : (initialExpense.walletId ?? ""))
+          : "",
         vendorId: initialExpense.vendorId,
         notes: initialExpense.notes ?? "",
-        transactionType: initialExpense.transactionType ?? "default",
+        transactionType: initialExpense.transactionType === "transfer" ? "default" : (initialExpense.transactionType ?? "default"),
       });
       setAmountDisplay(formatRupiah(String(initialExpense.amount)));
       setInitialReceipt(initialExpense.receiptUrl, initialExpense.receiptStorageId ?? null);
@@ -238,19 +260,30 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     setValue("amount", raw ? Number(raw) : 0, { shouldValidate: true });
   }
 
-  function handleDirectionChange(nextDirection: "expense" | "income") {
+  function handleDirectionChange(nextDirection: TransactionDirection) {
     setDirection(nextDirection);
-    if (nextDirection === "income") {
+    if (nextDirection === "income" || nextDirection === "transfer") {
       setValue("vendorId", undefined);
       setValue("installmentCount", 1);
       setValue("installmentRate", 0);
       splitBill.setSplitBillEnabled(false);
+    }
+    if (nextDirection === "transfer") {
+      setValue("categoryId", undefined, { shouldValidate: true });
+      setTransactionType("transfer");
+      setValue("transactionType", "transfer", { shouldValidate: true });
+    } else if (transactionType === "transfer") {
+      setTransactionType("default");
+      setValue("transactionType", "default", { shouldValidate: true });
     }
   }
 
   function handleWalletChange(walletId: string) {
     setValue("walletId", walletId, { shouldValidate: true });
     setValue("categoryId", undefined, { shouldValidate: true });
+    if (selectedToWalletId === walletId) {
+      setValue("toWalletId", "", { shouldValidate: true });
+    }
     setSheetPrimaryId(null);
     splitBill.clearWalletMembersFromSplit();
   }
@@ -290,6 +323,39 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
       }
       if (!data.transactionType) {
         throw new Error("Pilih tipe transaksi");
+      }
+      if (direction !== "transfer" && !data.description.trim()) {
+        throw new Error("Masukkan deskripsi");
+      }
+      if (direction === "transfer") {
+        if (!data.toWalletId) {
+          throw new Error("Pilih wallet tujuan");
+        }
+        if (data.toWalletId === data.walletId) {
+          throw new Error("Wallet asal dan tujuan harus berbeda");
+        }
+        const transferPayload = {
+          amount: data.amount,
+          description: data.description || undefined,
+          date: data.date.getTime(),
+          fromWalletId: data.walletId as Id<"wallets">,
+          toWalletId: data.toWalletId as Id<"wallets">,
+          notes: data.notes || undefined,
+        };
+
+        if (mode === "edit") {
+          if (!expenseId) throw new Error("Expense ID is required");
+          await updateTransfer({ id: expenseId, ...transferPayload });
+          haptics.medium();
+          toast.success("Transfer diperbarui!");
+          router.push("/transactions");
+        } else {
+          await createTransfer(transferPayload);
+          haptics.medium();
+          toast.success("Transfer disimpan!");
+          router.push("/dashboard");
+        }
+        return;
       }
       if (direction === "expense" && !data.categoryId) {
         throw new Error("Pilih kategori");
@@ -355,9 +421,11 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
 
   const isBusy = isSubmitting || uploading || receipt.scanning;
 
-  const directionFiltered = (categories ?? []).filter((cat) =>
-    (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense")
-  );
+  const directionFiltered = direction === "transfer"
+    ? []
+    : (categories ?? []).filter((cat) =>
+      (direction === "expense" ? cat.directionScope !== "income" : cat.directionScope !== "expense")
+    );
   const primaryCategories = directionFiltered.filter((cat) => !cat.parentId);
   const subCategories = directionFiltered.filter((cat) => cat.parentId);
   const filteredCategories = directionFiltered.filter((cat) =>
@@ -368,6 +436,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     ? categories?.find((cat) => cat._id === selectedCategory.parentId)
     : null;
   const isExpense = direction === "expense";
+  const isTransfer = direction === "transfer";
   const splitMembers = walletMembers ?? [];
   const splitMemberIds = new Set(splitBill.splitParticipants.flatMap((participant) => participant.userId ? [participant.userId] : []));
   const {
@@ -417,21 +486,27 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         {/* Category + Amount */}
         <div className="mt-4 flex items-center gap-4">
           {/* Category icon */}
-          <button
-            type="button"
-            onClick={handleOpenCategorySheet}
-            className={cn(
-              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-3xl transition-colors",
-              selectedCategory
-                ? "border border-primary/20 bg-primary/10"
-                : selectedWalletId
-                  ? "border border-border bg-muted/60 hover:bg-muted"
-                  : "border border-border bg-muted/40 text-muted-foreground/60"
-            )}
-            aria-label="Pilih kategori"
-          >
-            {selectedCategory?.icon ?? "+"}
-          </button>
+          {isTransfer ? (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-lg font-semibold text-primary">
+              Tx
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenCategorySheet}
+              className={cn(
+                "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-3xl transition-colors",
+                selectedCategory
+                  ? "border border-primary/20 bg-primary/10"
+                  : selectedWalletId
+                    ? "border border-border bg-muted/60 hover:bg-muted"
+                    : "border border-border bg-muted/40 text-muted-foreground/60"
+              )}
+              aria-label="Pilih kategori"
+            >
+              {selectedCategory?.icon ?? "+"}
+            </button>
+          )}
 
           {/* Amount + category name */}
           <div className="flex-1 min-w-0 text-right">
@@ -446,7 +521,13 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
                 className="min-w-0 w-full max-w-full bg-transparent text-3xl font-bold text-foreground outline-none placeholder:text-muted-foreground text-right tracking-tight"
               />
             </div>
-            {selectedCategory && (
+            {isTransfer ? (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {selectedWalletId && selectedToWalletId
+                  ? `${wallets?.find((wallet) => wallet._id === selectedWalletId)?.label || wallets?.find((wallet) => wallet._id === selectedWalletId)?.name} -> ${wallets?.find((wallet) => wallet._id === selectedToWalletId)?.label || wallets?.find((wallet) => wallet._id === selectedToWalletId)?.name}`
+                  : "Pindahkan saldo antar wallet"}
+              </p>
+            ) : selectedCategory && (
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {selectedParentCategory
                   ? `${selectedParentCategory.name} › ${selectedCategory.name}`
@@ -523,10 +604,12 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
                 key={option.value}
                 type="button"
                 onClick={() => {
+                  if (option.value === "transfer") handleDirectionChange("transfer");
+                  else if (option.value === "lent") handleDirectionChange("expense");
+                  else if (option.value === "borrowed") handleDirectionChange("income");
+                  else if (direction === "transfer") handleDirectionChange("expense");
                   setTransactionType(option.value);
                   setValue("transactionType", option.value, { shouldValidate: true });
-                  if (option.value === "lent") handleDirectionChange("expense");
-                  if (option.value === "borrowed") handleDirectionChange("income");
                 }}
                 className={cn(
                   "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150",
@@ -545,7 +628,7 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         )}
 
         {/* Cicilan (between transaction type and wallet) */}
-        {isRecurringTransactionType(transactionType) && (
+        {!isTransfer && isRecurringTransactionType(transactionType) && (
           <RecurringTransactionSection
             amountValue={amountValue}
             installmentCount={installmentCount}
@@ -565,7 +648,11 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         )}
 
         {/* Wallet */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+        <div className="space-y-2">
+          <p className="px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {isTransfer ? "Wallet Asal" : "Wallet"}
+          </p>
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
           {wallets?.map((wallet) => {
             const active = selectedWalletId === wallet._id;
             return (
@@ -587,23 +674,74 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
           {wallets?.length === 0 && (
             <p className="shrink-0 text-xs text-muted-foreground">Belum ada wallet.</p>
           )}
+          </div>
         </div>
         {errors.walletId && (
           <p className="text-xs text-destructive">{errors.walletId.message}</p>
         )}
 
+        {isTransfer && (
+          <div className="space-y-2">
+            <p className="px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Wallet Tujuan</p>
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+              {wallets?.map((wallet) => {
+                const active = selectedToWalletId === wallet._id;
+                const disabled = selectedWalletId === wallet._id;
+                return (
+                  <button
+                    key={wallet._id}
+                    type="button"
+                    onClick={() => !disabled && setValue("toWalletId", wallet._id, { shouldValidate: true })}
+                    disabled={disabled}
+                    className={cn(
+                      "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150",
+                      active
+                        ? "border-transparent bg-primary text-primary-foreground"
+                        : disabled
+                          ? "border-border bg-muted text-muted-foreground/60"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                    )}
+                  >
+                    {wallet.label || wallet.name}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.toWalletId && (
+              <p className="text-xs text-destructive">{errors.toWalletId.message}</p>
+            )}
+          </div>
+        )}
+
       </div>
 
-      <DescriptionPhotoSection
-        descriptionValue={descriptionValue}
-        onDescriptionChange={(v) => setValue("description", v, { shouldValidate: true })}
-        descriptionError={errors.description?.message}
-        fileRef={fileRef}
-        photoPreview={receipt.photoPreview}
-        scanning={receipt.scanning}
-        isEditMode={mode === "edit"}
-        onPhotoChange={receipt.handlePhotoChange}
-      />
+      {isTransfer ? (
+        <div className={cn("space-y-3 p-4", expenseCardShadow)}>
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Deskripsi</p>
+            <input
+              value={descriptionValue}
+              onChange={(e) => setValue("description", e.target.value, { shouldValidate: true })}
+              placeholder="Contoh: Pindah saldo operasional"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+            />
+            {errors.description?.message && (
+              <p className="text-xs text-destructive">{errors.description.message}</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <DescriptionPhotoSection
+          descriptionValue={descriptionValue}
+          onDescriptionChange={(v) => setValue("description", v, { shouldValidate: true })}
+          descriptionError={errors.description?.message}
+          fileRef={fileRef}
+          photoPreview={receipt.photoPreview}
+          scanning={receipt.scanning}
+          isEditMode={mode === "edit"}
+          onPhotoChange={receipt.handlePhotoChange}
+        />
+      )}
 
       {/* ── MORE OPTIONS ── */}
       <div className={cn("overflow-hidden", expenseCardShadow)}>
@@ -700,48 +838,52 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
         ) : isSubmitting ? (
           mode === "edit" ? "Memperbarui..." : "Menyimpan..."
         ) : (
-          mode === "edit" ? "Simpan Perubahan" : direction === "expense" ? "Simpan Pengeluaran" : "Simpan Pemasukan"
+         mode === "edit" ? "Simpan Perubahan" : direction === "expense" ? "Simpan Pengeluaran" : direction === "income" ? "Simpan Pemasukan" : "Simpan Transfer"
         )}
       </button>
 
       {/* ── CATEGORY SHEET ── */}
-      <TransactionCategorySheet
-        categorySearch={categorySearch}
-        currentPrimarySubs={currentPrimarySubs}
-        filteredCategories={filteredCategories}
-        open={categorySheetOpen}
-        primaryCategories={primaryCategories}
-        selectedCategoryId={selectedCategoryId}
-        sheetPrimaryId={sheetPrimaryId}
-        subCategories={subCategories}
-        onCategorySearchChange={setCategorySearch}
-        onOpenAddCategory={handleOpenAddCategory}
-        onOpenChange={(open) => {
-          setCategorySheetOpen(open);
-          if (!open) setSheetPrimaryId(null);
-        }}
-        onSelectCategory={(categoryId) => {
-          setValue("categoryId", categoryId, { shouldValidate: true });
-          setCategorySheetOpen(false);
-          setSheetPrimaryId(null);
-        }}
-        onSelectPrimary={(categoryId) => {
-          setValue("categoryId", categoryId, { shouldValidate: true });
-          setCategorySheetOpen(false);
-          setSheetPrimaryId(null);
-        }}
-        onSheetPrimaryChange={setSheetPrimaryId}
-      />
+      {!isTransfer && (
+        <>
+          <TransactionCategorySheet
+            categorySearch={categorySearch}
+            currentPrimarySubs={currentPrimarySubs}
+            filteredCategories={filteredCategories}
+            open={categorySheetOpen}
+            primaryCategories={primaryCategories}
+            selectedCategoryId={selectedCategoryId}
+            sheetPrimaryId={sheetPrimaryId}
+            subCategories={subCategories}
+            onCategorySearchChange={setCategorySearch}
+            onOpenAddCategory={handleOpenAddCategory}
+            onOpenChange={(open) => {
+              setCategorySheetOpen(open);
+              if (!open) setSheetPrimaryId(null);
+            }}
+            onSelectCategory={(categoryId) => {
+              setValue("categoryId", categoryId, { shouldValidate: true });
+              setCategorySheetOpen(false);
+              setSheetPrimaryId(null);
+            }}
+            onSelectPrimary={(categoryId) => {
+              setValue("categoryId", categoryId, { shouldValidate: true });
+              setCategorySheetOpen(false);
+              setSheetPrimaryId(null);
+            }}
+            onSheetPrimaryChange={setSheetPrimaryId}
+          />
 
-        <CategoryAddSheet
-          open={addCategoryOpen}
-          onOpenChange={setAddCategoryOpen}
-          defaultDirection={direction}
-          walletId={selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined}
-          onCreated={(id) => {
-            setValue("categoryId", id, { shouldValidate: true });
-          }}
-      />
+            <CategoryAddSheet
+              open={addCategoryOpen}
+              onOpenChange={setAddCategoryOpen}
+              defaultDirection={direction}
+              walletId={selectedWalletId ? (selectedWalletId as Id<"wallets">) : undefined}
+              onCreated={(id) => {
+                setValue("categoryId", id, { shouldValidate: true });
+            }}
+          />
+        </>
+      )}
     </form>
   );
 }

@@ -41,7 +41,8 @@ export default defineSchema({
       v.literal("subscription"),
       v.literal("repetitive"),
       v.literal("lent"),
-      v.literal("borrowed")
+      v.literal("borrowed"),
+      v.literal("transfer")
     ),
     amount: v.number(),
     installmentCount: v.optional(v.number()),
@@ -67,6 +68,9 @@ export default defineSchema({
     })),
     importSource: v.optional(v.string()),
     importFingerprint: v.optional(v.string()),
+    transferGroupId: v.optional(v.string()),
+    transferPeerWalletId: v.optional(v.id("wallets")),
+    linkedTransactionId: v.optional(v.id("transactions")),
     legacyExpenseId: v.optional(v.id("expenses")),
     legacyIncomeId: v.optional(v.id("incomes")),
     createdAt: v.number(),

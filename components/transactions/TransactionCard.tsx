@@ -29,6 +29,7 @@ interface TransactionCardProps {
     notes?: string;
     category?: { name: string; color?: string; icon?: string } | null;
     wallet?: { name: string } | null;
+    transferPeerWallet?: { name: string; label?: string } | null;
     vendor?: { name: string } | null;
     receiptUrl?: string | null;
     submitterName?: string;
@@ -52,6 +53,7 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
   const totalWithInterest = Math.round(transaction.amount * (1 + installmentRate / 100));
   const perInstallment = installmentCount > 0 ? Math.round(totalWithInterest / installmentCount) : totalWithInterest;
   const isExpense = transaction.direction === "expense";
+  const isTransfer = transaction.transactionType === "transfer";
   const canEdit = transaction.isOwn !== false;
   const splitParticipantCount = transaction.splitBill?.participants.length ?? 0;
   const splitPaidCount = transaction.splitBill?.participants.filter((participant) => participant.isPaid).length ?? 0;
@@ -61,7 +63,7 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
       "p-4 flex gap-3",
       !canEdit && "opacity-80"
     )}>
-      {transaction.category?.icon && (
+      {transaction.category?.icon && !isTransfer && (
         <div className="text-2xl leading-none mt-0.5">{transaction.category.icon}</div>
       )}
       <div className="flex-1 min-w-0">
@@ -81,12 +83,17 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
           )}>
             {isExpense ? "Pengeluaran" : "Pemasukan"}
           </span>
-          {transaction.transactionType && (
+          {isTransfer && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              Transfer
+            </span>
+          )}
+          {transaction.transactionType && !isTransfer && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground capitalize">
               {transaction.transactionType}
             </span>
           )}
-          {transaction.category && (
+          {transaction.category && !isTransfer && (
             <span
               className="text-xs px-2 py-0.5 rounded-full"
               style={{
@@ -102,6 +109,11 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
           )}
           {transaction.wallet && (
             <span className="text-xs text-muted-foreground">{transaction.wallet.name}</span>
+          )}
+          {isTransfer && transaction.transferPeerWallet && (
+            <span className="text-xs text-muted-foreground">
+              {isExpense ? "Ke" : "Dari"} {transaction.transferPeerWallet.label || transaction.transferPeerWallet.name}
+            </span>
           )}
           {transaction.submitterName && transaction.isOwn === false && (
             <span className="text-xs font-medium text-primary">Dibuat oleh {transaction.submitterName}</span>

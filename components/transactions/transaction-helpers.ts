@@ -4,7 +4,10 @@ export type TransactionType =
   | "subscription"
   | "repetitive"
   | "lent"
-  | "borrowed";
+  | "borrowed"
+  | "transfer";
+
+export type TransactionDirection = "expense" | "income" | "transfer";
 
 export type RepeatPeriod = "day" | "week" | "biweekly" | "month" | "quarterly" | "year";
 export type SplitMode = "equal" | "custom";
@@ -28,6 +31,7 @@ export const transactionTypeOptions = [
   { value: "upcoming", label: "Upcoming" },
   { value: "subscription", label: "Subscription" },
   { value: "repetitive", label: "Repetitive" },
+  { value: "transfer", label: "Transfer" },
   { value: "lent", label: "Lent" },
   { value: "borrowed", label: "Borrowed" },
 ] as const satisfies ReadonlyArray<{ value: TransactionType; label: string }>;
@@ -89,7 +93,7 @@ export type TransactionPayload = {
 };
 
 export function validateSplitBill(args: {
-  direction: "expense" | "income";
+  direction: TransactionDirection;
   enabled: boolean;
   mode: SplitMode;
   participantCount: number;
@@ -104,7 +108,7 @@ export function validateSplitBill(args: {
 }
 
 export function buildTransactionPayload(args: {
-  direction: "expense" | "income";
+  direction: Exclude<TransactionDirection, "transfer">;
   formTransactionType: string;
   amount: number;
   installmentCount: number;
