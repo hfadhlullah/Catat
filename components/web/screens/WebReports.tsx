@@ -209,7 +209,7 @@ export function WebReports() {
                 <p className="py-4 text-center text-sm text-muted-foreground">Tidak ada data</p>
               ) : (
                 <div className="space-y-3">
-                  {categoryData.map((cat, i) => (
+                  {categoryData.map((cat) => (
                     <div key={cat.categoryId}>
                       <div className="mb-1 flex items-center justify-between">
                         <span className="text-sm text-foreground">{cat.name}</span>
