@@ -46,7 +46,7 @@ import {
 import { useTransactionReceipt } from "./use-transaction-receipt";
 import { useTransactionSplitBill } from "./use-transaction-split-bill";
 import { useRecurringTransaction } from "./use-recurring-transaction";
-import { cn } from "@/lib/utils";
+import { cn, getUserFacingErrorMessage } from "@/lib/utils";
 import { useMobile } from "@/hooks/use-mobile";
 import { haptics } from "@/hooks/use-haptics";
 
@@ -425,11 +425,12 @@ export function TransactionForm({ mode = "create", expenseId, initialExpense }: 
     } catch (err: unknown) {
       haptics.error();
       toast.error(
-        err instanceof Error
-          ? err.message
-          : mode === "edit"
+        getUserFacingErrorMessage(
+          err,
+          mode === "edit"
             ? "Gagal memperbarui"
             : "Gagal menyimpan"
+        )
       );
     } finally {
       setUploading(false);

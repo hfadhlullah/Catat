@@ -68,6 +68,44 @@ async function getLinkedTransferTransaction(ctx: QueryCtx | MutationCtx, transac
   return linked.find((item) => item._id !== transaction._id) ?? null;
 }
 
+async function getWalletBalance(ctx: QueryCtx | MutationCtx, walletId: Id<"wallets">) {
+  const wallet = await ctx.db.get(walletId);
+  if (!wallet) {
+    throw new ConvexError("Wallet tidak valid");
+  }
+
+  const transactions = await ctx.db
+    .query("transactions")
+    .withIndex("by_wallet", (q) => q.eq("walletId", walletId))
+    .collect();
+
+  const totalIncome = transactions
+    .filter((item) => item.direction === "income")
+    .reduce((sum, item) => sum + item.amount, 0);
+  const totalExpense = transactions
+    .filter((item) => item.direction === "expense")
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  return wallet.initialBalance + totalIncome - totalExpense;
+}
+
+async function ensureWalletHasEnoughBalance(
+  ctx: MutationCtx,
+  walletId: Id<"wallets">,
+  amount: number,
+  currentSourceTransaction?: { walletId: Id<"wallets">; amount: number }
+) {
+  let availableBalance = await getWalletBalance(ctx, walletId);
+
+  if (currentSourceTransaction?.walletId === walletId) {
+    availableBalance += currentSourceTransaction.amount;
+  }
+
+  if (amount > availableBalance) {
+    throw new ConvexError("Saldo wallet asal tidak cukup untuk transfer ini");
+  }
+}
+
 function getInstallmentSnapshot(transaction: {
   amount: number;
   installmentCount?: number;
@@ -528,6 +566,8 @@ export const createWalletTransfer = mutation({
     const description = args.description?.trim() || `Transfer ke ${toWallet.label || toWallet.name}`;
     const linkedDescription = args.description?.trim() || `Transfer dari ${fromWallet.label || fromWallet.name}`;
 
+    await ensureWalletHasEnoughBalance(ctx, args.fromWalletId, amount);
+
     const fromTransactionId = await ctx.db.insert("transactions", {
       direction: "expense",
       transactionType: "transfer",
@@ -834,6 +874,11 @@ export const updateWalletTransfer = mutation({
     const sourceId = transaction.direction === "expense" ? transaction._id : linked._id;
     const targetId = transaction.direction === "income" ? transaction._id : linked._id;
     const groupId = transaction.transferGroupId ?? linked.transferGroupId ?? crypto.randomUUID();
+
+    await ensureWalletHasEnoughBalance(ctx, args.fromWalletId, amount, {
+      walletId: transaction.direction === "expense" ? transaction.walletId : linked.walletId,
+      amount: transaction.direction === "expense" ? transaction.amount : linked.amount,
+    });
 
     await ctx.db.patch(sourceId, {
       direction: "expense",
