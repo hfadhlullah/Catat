@@ -1,15 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { ResponsiveAppShell } from "@/components/web/ResponsiveAppShell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24">
-        <main className="flex-1">{children}</main>
-        <BottomNav />
-      </div>
+      <ResponsiveAppShell>{children}</ResponsiveAppShell>
     </AuthGuard>
   );
 }

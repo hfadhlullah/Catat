@@ -126,12 +126,8 @@ function CardContent({ expense: transaction }: { expense: TransactionCardProps["
           <DialogTrigger asChild>
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                haptics.light();
-              }}
-              className="shrink-0"
+              onClick={() => haptics.light()}
+              className="relative z-10 shrink-0"
             >
               <Image
                 src={transaction.receiptUrl}
@@ -177,14 +173,14 @@ export function TransactionCard({ expense }: TransactionCardProps) {
   }
 
   return (
-    <Link
-      href={`/transactions/${expense._id}/edit`}
-      onClick={haptics.light}
-      className={cn(
-        "block relative rounded-2xl border border-border bg-card transition-opacity shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]"
-      )}
-    >
+    <div className="relative rounded-2xl border border-border bg-card shadow-[2px_3px_0px_0px_rgba(0,0,0,0.06)] dark:shadow-[2px_3px_0px_0px_rgba(255,255,255,0.06)]">
+      <Link
+        href={`/transactions/${expense._id}/edit`}
+        onClick={haptics.light}
+        className="absolute inset-0 rounded-2xl"
+        aria-label={expense.description}
+      />
       <CardContent expense={expense} />
-    </Link>
+    </div>
   );
 }
