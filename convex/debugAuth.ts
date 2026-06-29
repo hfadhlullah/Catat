@@ -1,5 +1,31 @@
-import { mutation } from "./_generated/server";
+import { action, internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Scrypt } from "lucia";
+import { internal } from "./_generated/api";
+
+export const setPasswordHash = internalMutation({
+  args: { email: v.string(), hash: v.string() },
+  handler: async (ctx, { email, hash }): Promise<{ found: boolean }> => {
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", email)
+      )
+      .unique();
+
+    if (!account) return { found: false };
+    await ctx.db.patch(account._id, { secret: hash });
+    return { found: true };
+  },
+});
+
+export const updatePassword = action({
+  args: { email: v.string(), newPassword: v.string() },
+  handler: async (ctx, { email, newPassword }): Promise<{ found: boolean }> => {
+    const hash = await new Scrypt().hash(newPassword);
+    return await ctx.runMutation(internal.debugAuth.setPasswordHash, { email, hash });
+  },
+});
 
 export const resetAuthForEmail = mutation({
   args: { email: v.string() },
