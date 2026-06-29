@@ -14,6 +14,12 @@ const convexHostname = getConvexHostname();
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@convex-dev/auth"],
+  async rewrites() {
+    return [
+      { source: "/.well-known/openid-configuration", destination: "/api/well-known/openid-configuration" },
+      { source: "/.well-known/jwks.json", destination: "/api/well-known/jwks" },
+    ];
+  },
   experimental: {
     viewTransition: true,
   },
