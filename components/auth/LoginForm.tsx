@@ -47,7 +47,7 @@ export function LoginForm() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      ensureUserProfile().finally(() => router.replace("/dashboard"));
+      ensureUserProfile().catch(() => null).finally(() => router.replace("/dashboard"));
     }
   }, [isAuthenticated, ensureUserProfile, router]);
 
@@ -59,7 +59,11 @@ export function LoginForm() {
     formData.set("flow", mode);
 
     try {
-      await signIn("password", formData);
+      const result = await signIn("password", formData);
+      if (result && "signingIn" in result && result.signingIn) {
+        router.replace("/dashboard");
+        return;
+      }
     } catch (err: unknown) {
       toast.error(getAuthErrorMessage(err, mode));
     } finally {
