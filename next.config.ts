@@ -13,6 +13,7 @@ function getConvexHostname(): string | undefined {
 const convexHostname = getConvexHostname();
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@convex-dev/auth"],
   experimental: {
     viewTransition: true,
   },
